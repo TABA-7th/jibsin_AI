@@ -1,3 +1,5 @@
+# urls -> views.py -> utils.py
+
 import firebase_admin
 from firebase_admin import credentials, storage
 import openai
@@ -6,7 +8,7 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
-from .utils import get_latest_image_url
+from .utils import get_latest_images_by_type
 
 
 
@@ -50,17 +52,19 @@ def get_images(request): # Storage 내 모든 파일 가져오기
 
 #Firebase에서 가장 최근 업로드된 이미지 URL을 반환하는 API.
 @csrf_exempt
-def fetch_latest_image(request):
-    
+def fetch_latest_images(request):
+    """
+    가장 최근에 업로드된 문서 유형에 해당하는 모든 이미지를 반환하는 API.
+    예: 3분 전 계약서 4장, 방금 등기부등본 1장 -> 등기부등본 1장만 반환
+    """
     try:
-        image_url = get_latest_image_url()
-        return JsonResponse({"latest_image_url": image_url}, status=200)
+        response = get_latest_images_by_type()  # utils.py의 함수 실행
+        return JsonResponse(response, status=200 if "latest_images" in response else 404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
 # Firebase 연결이 정상적으로 되었는지 확인하는 API 엔드포인트
 def test_firebase_connection(request):
-    
     
     try:
         bucket = storage.bucket()
