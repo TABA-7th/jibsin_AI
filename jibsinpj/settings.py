@@ -4,10 +4,15 @@ import os
 import json
 import firebase_admin
 from firebase_admin import credentials, storage
+from dotenv import load_dotenv
+
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-FIREBASE_KEY_PATH = os.path.join(BASE_DIR, "firebase_key.json")
+FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", os.path.join(BASE_DIR, "firebase_key.json"))
+FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET", "jibsin.firebasestorage.app")
 
 # Firebase 키 로드
 if os.path.exists(FIREBASE_KEY_PATH):
@@ -17,11 +22,17 @@ else:
     FIREBASE_CONFIG = None
 
 # Firebase 앱 초기화
-if FIREBASE_CONFIG:
+if not firebase_admin._apps:
+    cred = credentials.Certificate(FIREBASE_KEY_PATH)
+    firebase_admin.initialize_app(cred, {"storageBucket": FIREBASE_STORAGE_BUCKET})
+
+# Firebase 앱 초기화
+
+"""if FIREBASE_CONFIG:
     cred = credentials.Certificate(FIREBASE_KEY_PATH)
     firebase_admin.initialize_app(cred, {
         'storageBucket': FIREBASE_CONFIG.get("storageBucket")
-    })
+    })"""
 
 
 # Firebase 키 경로 설정
@@ -49,6 +60,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'firebase_api',
+    'ai_processing',
 ]
 
 MIDDLEWARE = [
