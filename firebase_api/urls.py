@@ -1,5 +1,6 @@
 #  Firebase 관련 API의 URL을 정의하는 파일
 # 역할: views.py의 함수들과 Django의 URL을 연결
+# urls -> views.py(api 엔드포인트) -> utils.py(기능구현)
 
 from django.urls import path
 from .views import (
