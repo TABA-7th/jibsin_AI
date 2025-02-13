@@ -37,7 +37,7 @@ def contract_ocr(image_url):
     """
     ✅ 계약서 OCR 수행 함수 (이미지 URL을 받아서 OCR 처리)
     """
-    image_path = download_image(image_url)
+    image_path = download_image(image_url) # 네이버 clova를 실행시키기 위해...
     if not image_path:
         return pd.DataFrame()  # OCR 실패 시 빈 DataFrame 반환
 
@@ -90,7 +90,7 @@ def registry_ocr(image_url):
     """
     ✅ 등기부등본 OCR 수행 함수 (이미지 URL을 받아서 OCR 처리)
     """
-    image_path = download_image(image_url)
+    image_path = download_image(image_url) # clova를 실행시키기 위해서는 로컬파일 필요.
     
     if not image_path:
         print(f"❌ 등기부등본 이미지 로드 실패: {image_url}")
@@ -125,15 +125,15 @@ def registry_ocr(image_url):
                     "x1": x1, "y1": y1,
                     "x2": x2, "y2": y2
                 })
-        df = pd.DataFrame(all_data)
-        return df # OCR 성공 시 결과 반환
+        first_registry_ocr_text = pd.DataFrame(all_data)
+        return first_registry_ocr_text # OCR 성공 시 결과 반환
 
     print(f"❌ OCR 실패: {response.status_code}, {response.text}")
     return None # OCR 실패 시 None 반환
 
 
 # 🔥 4️⃣ OCR 실행 함수 (문서 유형별로 처리)
-def process_documents_by_type(classified_documents):
+def process_documents_by_type(classified_documents): 
     """
     ✅ Firestore에서 받은 문서 이미지 URL을 OCR에 넣어 실행하는 함수
     """
@@ -201,5 +201,47 @@ def read_registry_image(client, image_url):
         ],
         max_tokens=1000
     )
-    return response.choices[0].message.content
+    text = response.choices[0].message.content
+    return text
 
+## 건축물 대장 ocr 부분
+
+
+
+# Clova OCR 호출 (1차 OCR)
+def building_ocr(image_path, doc_type):
+    """
+    ✅ 네이버 Clova OCR을 사용하여 텍스트 및 바운딩 박스 좌표 추출
+    """
+    request_json = {
+        'images': [{'format': 'jpg', 'name': doc_type}],
+        'requestId': str(uuid.uuid4()),
+        'version': 'V2',
+        'timestamp': int(round(time.time() * 1000))
+    }
+
+    with open(image_path, "rb") as image_file:
+        image_bytes = image_file.read()
+
+    payload = {'message': json.dumps(request_json).encode('UTF-8')}
+    files = [('file', ('image.jpg', image_bytes, 'image/jpeg'))]
+    headers = {'X-OCR-SECRET': OCR_SECRET_KEY}
+
+    response = requests.post(OCR_API_URL, headers=headers, data=payload, files=files)
+
+    if response.status_code == 200:
+        ocr_results = response.json()
+        all_data = []
+
+        for image_result in ocr_results.get('images', []):
+            for field in image_result.get('fields', []):
+                text = field['inferText']
+                bounding_box = field['boundingPoly']['vertices']
+                x1, y1 = int(bounding_box[0]['x']), int(bounding_box[0]['y'])
+                x2, y2 = int(bounding_box[2]['x']), int(bounding_box[2]['y'])
+                all_data.append({"Text": text, "x1": x1, "y1": y1, "x2": x2, "y2": y2})
+
+        return pd.DataFrame(all_data)
+
+    print(f"❌ OCR 실패: {response.status_code}, {response.text}")
+    return pd.DataFrame()
