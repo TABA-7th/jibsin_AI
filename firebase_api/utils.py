@@ -1,4 +1,5 @@
 # Firebase를 초기화하고, 최신 이미지의 URL을 가져오는 함수 제공
+# urls -> views.py(api 엔드포인트) -> utils.py(기능구현)
 
 import firebase_admin
 from firebase_admin import credentials, storage
