@@ -57,16 +57,19 @@ def merge_images(image_paths):
 
     return merged_image
 
-def save_ocr_results(ocr_results, output_file):
-    """
-    ✅ OCR 결과를 JSON 파일로 저장 (AI 분석 단계에서 사용)
-    """
+def save_ocr_json(text: str, output_file: str) -> str:
     try:
+        text = text.strip().replace("```json", "").replace("```", "")  # 🔹 불필요한 JSON 래퍼 제거
+        data = json.loads(text)  # 🔹 JSON 변환
+
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(ocr_results, f, ensure_ascii=False, indent=4)
-        print(f"✅ OCR 결과 저장 완료: {output_file}")
-    except Exception as e:
-        print(f"❌ JSON 저장 실패: {e}")
+            json.dump(data, f, ensure_ascii=False, indent=4)  # 🔹 JSON 저장
+        print(f"✅ JSON 결과 저장 완료: {output_file}")
+        return output_file  # 🔹 저장된 JSON 파일 경로 반환
+
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 변환 실패: {e}")
+        return ""
 
 # ✅ 3️⃣ 병합된 이미지를 로컬에 저장하는 함수
 def save_merged_image(merged_image):
@@ -200,24 +203,23 @@ def building_keyword_ocr(image_urls, doc_type):
 
     ocr_result = {
         "image_urls": image_urls,
-        "ocr_texts": ocr_data.to_dict(orient="records"),
+        "ocr_texts": ocr_data.to_dict(orient="records"), #좌표값
         "gpt_keywords": gpt_keywords
     }
 
     # ✅ 6️⃣ OCR 및 GPT 분석 결과 저장
-    all_text_data.append(ocr_result)
+    all_text_data.append(ocr_result) # 혹시 필요할 수 있으니 
 
     # ✅ 8️⃣ OCR 결과 JSON 파일로 저장
     output_file = f"ocr_result_{doc_type}.json"  # ✅ 문서 유형별 저장
-    save_ocr_results(ocr_result, output_file)
+    return save_ocr_json(json.dumps(ocr_result, ensure_ascii=False, indent=4), output_file)
 
-    return all_text_data
 
 
 
 
 # 실행 함수 (Firebase에서 가져와 실행)
-def request(firebase_document_data):
+##def request(firebase_document_data):
     """
     🔥 Firestore에서 가져온 문서들을 OCR 및 GPT 분석 수행
     """
