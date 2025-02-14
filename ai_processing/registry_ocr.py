@@ -161,67 +161,76 @@ def registry_keyword_ocr(image_urls, doc_type):
     #  GPT 분석 (2차 OCR)
     messages = [
         {
+            "role": "system",
+            "content": "JSON 형식으로만 응답하세요. 설명이나 마크다운은 포함하지 마세요."
+        },
+        {
             "role": "user",
             "content": [
                 {
                     "type": "text",
                     "text": (
-                        f"다음은 등기부등본 OCR 분석을 위한 데이터입니다.\n\n"
-                        f" **내용 데이터 :**\n{df_json}\n\n"
-                        f" **작업 목표:**\n"
-                        f"등기부등본 데이터에서 다음 정보를 추출하여 정해진 형식으로 반환해주세요:\n"
-                        f"1. 부동산의 표시:\n"
-                        f"  - 소재지번\n"
-                        f"  - 건물내역/구조\n"
-                        f"  - 면적정보\n"
-                        f"2. 소유권에 관한 사항:\n"
-                        f"  - 등기원인\n"
-                        f"  - 권리자정보\n"
-                        f"  - 주소정보\n"
-                        f"3. 기타 권리에 관한 사항:\n"
-                        f"  - 채권최고액\n"
-                        f"  - 채무자정보\n"
-                        f"  - 근저당권자\n"
-                        f"\n\n🎯 **결과 형식:**\n"
-                        f"- JSON 형식으로 반환 (각 항목의 바운딩 박스 포함)\n"
-                        f"- 모든 발견된 정보를 포함\n\n"
-                        f" **반환 예시:**\n"
+                        f"다음 OCR 데이터에서 등기부등본 정보를 추출하여 지정된 JSON 형식으로만 반환하세요:\n\n"
+                        f"{df_json}\n\n"
+                        f"다음 필드들을 포함하되, 찾을 수 없는 정보는 생략하세요:\n"
+                        f"- 소재지번\n"
+                        f"- 건물내역\n"
+                        f"- 구조\n"
+                        f"- 면적정보\n"
+                        f"- 등기원인\n"
+                        f"- 권리자정보\n"
+                        f"- 채권최고액\n"
+                        f"- 근저당권자\n\n"
+                        f"각 필드는 다음 형식을 따라야 합니다:\n"
                         f"{{\n"
-                        f"  \"소재지번\": {{\n"
-                        f"    \"text\": \"경기도 성남시 분당구...\",\n"
+                        f"  \"필드명\": {{\n"
+                        f"    \"text\": \"추출된 텍스트\",\n"
                         f"    \"bounding_box\": {{\n"
-                        f"      \"x1\": 값, \"y1\": 값, \"x2\": 값, \"y2\": 값\n"
+                        f"      \"x1\": 숫자,\n"
+                        f"      \"y1\": 숫자,\n"
+                        f"      \"x2\": 숫자,\n"
+                        f"      \"y2\": 숫자\n"
                         f"    }}\n"
-                        f"  }},\n"
-                        f"  ... (발견된 다른 모든 정보)\n"
-                        f"}}\n\n"
-                        f" **주의사항:**\n"
-                        f"- 찾을 수 없는 정보는 해당 필드를 생략\n"
-                        f"- '-' 표시가 있는 말소사항은 제외\n"
-                        f"- 모든 발견된 정보를 포함할 것\n"
+                        f"  }}\n"
+                        f"}}"
                     )
-                },
+                }
             ]
         }
     ]
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=messages,
-        max_tokens=5000
-    )
+    
     try:
-        gpt_keywords = response.choices[0].message.content.strip() if response.choices else "{}"
-        gpt_keywords = gpt_keywords.replace("```json", "").replace("```", "").strip()
-        json.loads(gpt_keywords)
-    except json.JSONDecodeError:
-        print("GPT 응답이 JSON 형식이 아님! 원본 응답 출력:", response.choices[0].message.content)
-        gpt_keywords = "{}"
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=5000
+        )
+        
+        # GPT 응답 얻기
+        gpt_response = response.choices[0].message.content.strip() if response.choices else "{}"
+        
+        # JSON 문자열 정제
+        gpt_response = gpt_response.strip().replace("```json", "").replace("```", "")
+        
+        # JSON으로 파싱하여 검증
+        parsed_json = json.loads(gpt_response)
+        
+        # 정제된 JSON을 문자열로 변환
+        json_str = json.dumps(parsed_json, ensure_ascii=False, indent=4)
+        
+        # 파일 저장
+        output_file = f"ocr_result_{doc_type}.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(json_str)
+            
+        print(f"✅ 2차 OCR 결과 저장 완료: {output_file}")
+        return output_file
 
-
-    # OCR 결과 JSON 파일로 저장
-    output_file = f"ocr_result_{doc_type}.json"  #  문서 유형별 저장
-    return save_ocr_json(gpt_keywords, output_file)
-
-
-
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 변환 실패: {e}")
+        print(f"원본 응답: {response.choices[0].message.content}")
+        return ""
+    except Exception as e:
+        print(f"❌ 처리 중 오류 발생: {str(e)}")
+        return ""
