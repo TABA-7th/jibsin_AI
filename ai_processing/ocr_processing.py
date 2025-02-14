@@ -62,7 +62,7 @@ def run_all_ocr():
         building_result = building_keyword_ocr(
             firebase_document_data.get("building_registry", []),
             "building_registry"
-        )
+        )  
         if building_result:
             all_results["building_registry"] = building_result
             # 개별 결과 파일 저장
