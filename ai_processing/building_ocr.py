@@ -9,16 +9,20 @@ import time
 import re
 from io import BytesIO
 from PIL import Image
+from dotenv import load_dotenv
 
-# GPT 모델 설정
-secret_key = 'WVJnTm1OV2pZZVRvTlluYmlLS1lSbUlZQk5jcUxDZWw='  # 직접 값 설정
-api_url = 'https://tx6el9d54v.apigw.ntruss.com/custom/v1/38205/dffe650f3889e1adfe8a87fb4e7dd5e5f7b15247b02996892d2e319bd8000d1c/general'  # 직접 값 설정
+# 환경 변수 로드
+load_dotenv()
+
+# API 설정
+secret_key = os.getenv("OCR_SECRET_KEY")
+api_url = os.getenv("OCR_API_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL = "gpt-4o"
 
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-def read_ocr(secret_key, api_url, image_data):
+def building_first_ocr(secret_key, api_url, image_data):
     """이미지 데이터에서 OCR 실행"""
     request_json = {
         'images': [{'format': 'jpg', 'name': 'demo'}],
@@ -93,7 +97,7 @@ def building_keyword_ocr(image_urls, doc_type):
         
         # 1차 OCR 실행
         try:
-            df = read_ocr(secret_key=secret_key, api_url=api_url, image_data=image_data)
+            df = building_first_ocr(secret_key=secret_key, api_url=api_url, image_data=image_data)
             if df.empty:
                 continue
         except Exception as e:
