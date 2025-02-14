@@ -1,7 +1,7 @@
 import json
 import os
 import requests
-from ai_processing.building_ocr import building_keyword_ocr #  OCR 모듈 직접 가져오기
+from ai_processing.registry_ocr import registry_keyword_ocr #  OCR 모듈 직접 가져오기
 from firebase_api.views import fetch_latest_documents  
 
 OCR_RESULTS_FILE = "./ocr_results.json"
@@ -40,15 +40,15 @@ def run_all_ocr():
     print(f" Firestore 문서 가져오기 완료: {firebase_document_data}")
 
     all_results = {
-        "building_registry": building_keyword_ocr(firebase_document_data.get("building_registry", []), "building_registry"),
+         "registry_document": registry_keyword_ocr(firebase_document_data.get("registry_document", []), "registry_document"),
+         #"building_registry": building_keyword_ocr(firebase_document_data.get("building_registry", []), "building_registry"),
         # "contract": contract_keyword_ocr(firebase_document_data.get("contract", []), "contract"),
-        # "registry_document": registry_keyword_ocr(firebase_document_data.get("registry_document", []), "registry_document"),
     }
 
     try:
         with open(OCR_RESULTS_FILE, "w", encoding="utf-8") as f:
             json.dump(all_results, f, ensure_ascii=False, indent=4)
-        print(f" 모든 OCR 결과 저장 완료: {OCR_RESULTS_FILE}")
+        print(f"✅ 모든 OCR 결과 저장 완료: {OCR_RESULTS_FILE}")
         return OCR_RESULTS_FILE
     except Exception as e:
         print(f" OCR 결과 저장 실패: {e}")
