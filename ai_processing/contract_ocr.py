@@ -25,7 +25,7 @@ MODEL = "gpt-4o"
 
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-def base_xy():
+def contract_xy_mapping():
     """계약서 양식의 기준 좌표값 설정"""
     rows = [
             ['1st',70,114,1208,238],
@@ -153,7 +153,7 @@ def merge_images(image_urls):
     
     return merged_image
 
-def cre_ocr(image):
+def first_contract_ocr(image):
     """병합된 이미지에 대해 OCR 실행"""
     request_json = {
         'images': [{'format': 'jpg', 'name': 'demo'}],
@@ -199,7 +199,7 @@ def fix_json_format(text: str) -> str:
     
     return text
 
-def ttj(text: str, output_file: str) -> str:
+def format_contract_json(text: str, output_file: str) -> str:
     """OCR 결과 JSON 데이터를 정리하고 저장하는 함수"""
     try:
         text = fix_json_format(text)
@@ -228,13 +228,13 @@ def ttj(text: str, output_file: str) -> str:
 def contract_keyword_ocr(image_urls, doc_type):
     """Firebase URLs에서 계약서 OCR 처리"""
     merged_image = merge_images(image_urls) # 이미지 병합합 
-    df = cre_ocr(merged_image)
+    df = first_contract_ocr(merged_image)
     
     if df is None:
         print(" OCR 처리 실패")
         return ""
         
-    xy = base_xy()
+    xy = contract_xy_mapping()
     xy_json = xy.to_json(orient="records", force_ascii=False)
     df_json = df.to_json(orient="records", force_ascii=False)
     
@@ -336,4 +336,4 @@ def contract_keyword_ocr(image_urls, doc_type):
     )
     
     text = response.choices[0].message.content.strip()
-    return ttj(text, f"ocr_result_{doc_type}.json")
+    return format_contract_json(text, f"ocr_result_{doc_type}.json")

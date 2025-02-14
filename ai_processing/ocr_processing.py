@@ -71,17 +71,17 @@ def run_all_ocr():
             print(f"✅ 건축물대장 OCR 결과 저장 완료: {OCR_RESULTS['building_registry']}")
 
     # 계약서 OCR 처리 **** 완료 *****
-#    if firebase_document_data.get("contract"):
-#        contract_result = contract_keyword_ocr(
-#            firebase_document_data.get("contract", []), 
-#            "contract"
-#        )
-#        if contract_result:
-#            all_results["contract"] = contract_result
+    if firebase_document_data.get("contract"):
+        contract_result = contract_keyword_ocr(
+            firebase_document_data.get("contract", []), 
+            "contract"
+        )
+        if contract_result:
+            all_results["contract"] = contract_result
 
- #           with open(OCR_RESULTS["contract"], "w", encoding="utf-8") as f:
-  #              json.dump({"contract": contract_result}, f, ensure_ascii=False, indent=4)
-   #         print(f"✅ 계약서 OCR 결과 저장 완료: {OCR_RESULTS['contract']}")
+            with open(OCR_RESULTS["contract"], "w", encoding="utf-8") as f:
+                json.dump({"contract": contract_result}, f, ensure_ascii=False, indent=4)
+            print(f"✅ 계약서 OCR 결과 저장 완료: {OCR_RESULTS['contract']}")
 
     try:
         # 전체 결과 저장
