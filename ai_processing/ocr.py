@@ -8,10 +8,10 @@ import os
 import tempfile
 from dotenv import load_dotenv
 
-# ✅ 환경 변수 로드
+#  환경 변수 로드
 load_dotenv()
 
-# ✅ .env에서 환경 변수 가져오기
+#  .env에서 환경 변수 가져오기
 OCR_SECRET_KEY = os.getenv("OCR_SECRET_KEY")
 OCR_API_URL = os.getenv("OCR_API_URL")
 
@@ -19,11 +19,11 @@ MODEL = "gpt-4o"
 
 def download_image(image_url): # ocr을 수행하기 위해서는 local파일이 필요함!
     """
-    ✅ 이미지 URL에서 다운로드하여 임시 파일로 저장하는 함수
+     이미지 URL에서 다운로드하여 임시 파일로 저장하는 함수
     """
     response = requests.get(image_url, stream=True)
     if response.status_code != 200:
-        print(f"❌ 이미지 다운로드 실패: {image_url}")
+        print(f" 이미지 다운로드 실패: {image_url}")
         return None
 
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
@@ -35,7 +35,7 @@ def download_image(image_url): # ocr을 수행하기 위해서는 local파일이
 
 def contract_ocr(image_url):
     """
-    ✅ 계약서 OCR 수행 함수 (이미지 URL을 받아서 OCR 처리)
+     계약서 OCR 수행 함수 (이미지 URL을 받아서 OCR 처리)
     """
     image_path = download_image(image_url) # 네이버 clova를 실행시키기 위해...
     if not image_path:
@@ -43,7 +43,7 @@ def contract_ocr(image_url):
 
     image = cv2.imread(image_path)
     if image is None:
-        print(f"❌ 계약서 이미지 로드 실패: {image_url}")
+        print(f" 계약서 이미지 로드 실패: {image_url}")
         return pd.DataFrame()
 
     target_size = (1240, 1753)
@@ -63,7 +63,7 @@ def contract_ocr(image_url):
 
     response = requests.post(OCR_API_URL, headers=headers, data=payload, files=files)
 
-    os.remove(image_path)  # ✅ OCR 완료 후 임시 파일 삭제
+    os.remove(image_path)  #  OCR 완료 후 임시 파일 삭제
 
     if response.status_code == 200:
         ocr_results = response.json()
@@ -88,12 +88,12 @@ def contract_ocr(image_url):
 
 def registry_ocr(image_url):
     """
-    ✅ 등기부등본 OCR 수행 함수 (이미지 URL을 받아서 OCR 처리)
+     등기부등본 OCR 수행 함수 (이미지 URL을 받아서 OCR 처리)
     """
     image_path = download_image(image_url) # clova를 실행시키기 위해서는 로컬파일 필요.
     
     if not image_path:
-        print(f"❌ 등기부등본 이미지 로드 실패: {image_url}")
+        print(f" 등기부등본 이미지 로드 실패: {image_url}")
         return pd.DataFrame()
 
     request_json = {
@@ -108,7 +108,7 @@ def registry_ocr(image_url):
 
     response = requests.post(OCR_API_URL, headers=headers, data=payload, files=files)
 
-    os.remove(image_path)  # ✅ OCR 완료 후 임시 파일 삭제
+    os.remove(image_path)  #  OCR 완료 후 임시 파일 삭제
 
     if response.status_code == 200:
         ocr_results = response.json()
@@ -128,11 +128,11 @@ def registry_ocr(image_url):
         first_registry_ocr_text = pd.DataFrame(all_data)
         return first_registry_ocr_text # OCR 성공 시 결과 반환
 
-    print(f"❌ OCR 실패: {response.status_code}, {response.text}")
+    print(f"OCR 실패: {response.status_code}, {response.text}")
     return None # OCR 실패 시 None 반환
 
 
-# 🔥 4️⃣ OCR 실행 함수 (문서 유형별로 처리)
+#  4️⃣ OCR 실행 함수 (문서 유형별로 처리)
 def process_documents_by_type(classified_documents): 
     """
     ✅ Firestore에서 받은 문서 이미지 URL을 OCR에 넣어 실행하는 함수
@@ -141,18 +141,18 @@ def process_documents_by_type(classified_documents):
 
     for doc_type, image_urls in classified_documents.items():
         for image_url in image_urls:
-            # ✅ OCR 실행
+            # OCR 실행
             if doc_type == "contract":
                 ocr_result = contract_ocr(image_url)
             elif doc_type == "registry_document":
                 ocr_result = registry_ocr(image_url)   ## 건축물 대장정 추가해야돼!
             else:
-                continue
+                continue 
 
             if ocr_result.empty:
-                print(f"❌ OCR 결과가 없음: {image_url}")
+                print(f" OCR 결과가 없음: {image_url}")
             else:
-                print(f"✅ OCR 성공: {image_url}")
+                print(f" OCR 성공: {image_url}")
 
             ocr_results[doc_type].append(ocr_result.to_dict(orient="records"))
 
@@ -165,11 +165,11 @@ def read_registry_image(client, image_url):
     """
     df_regis = registry_ocr(image_url)
     if df_regis is None or df_regis.empty:
-        print("❌ OCR 결과가 없으므로 GPT 요청을 건너뜁니다.")
+        print(" OCR 결과가 없으므로 GPT 요청을 건너뜁니다.")
         return None
 
 
-    # ✅ GPT 입력 프롬프트
+    #  GPT 입력 프롬프트
     response = client.chat.completions.create(
         model= MODEL ,
         messages=[
@@ -211,7 +211,7 @@ def read_registry_image(client, image_url):
 # Clova OCR 호출 (1차 OCR)
 def building_ocr(image_path, doc_type):
     """
-    ✅ 네이버 Clova OCR을 사용하여 텍스트 및 바운딩 박스 좌표 추출
+    네이버 Clova OCR을 사용하여 텍스트 및 바운딩 박스 좌표 추출
     """
     request_json = {
         'images': [{'format': 'jpg', 'name': doc_type}],
@@ -243,5 +243,5 @@ def building_ocr(image_path, doc_type):
 
         return pd.DataFrame(all_data)
 
-    print(f"❌ OCR 실패: {response.status_code}, {response.text}")
+    print(f" OCR 실패: {response.status_code}, {response.text}")
     return pd.DataFrame()

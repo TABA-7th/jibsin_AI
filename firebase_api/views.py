@@ -102,7 +102,7 @@ def test_firebase_connection(request):
     return JsonResponse({"image_urls": image_urls}) """
 
 
-# ✅ 최신 문서 유형별 가장 최신 이미지만 가져오기 (type 기준 필터링)
+#  최신 문서 유형별 가장 최신 이미지만 가져오기 (type 기준 필터링)
 """
     Firestore에서 최신 문서를 가져와 'type'별로 가장 최신 이미지만 반환하는 API.
     예: 
@@ -113,7 +113,7 @@ def test_firebase_connection(request):
 @csrf_exempt
 def fetch_latest_documents(request): ### document문서들을 통합해서 저장하는 코드
     """
-    ✅ Firestore에서 최신 문서를 가져와 문서 유형별로 분류 후 반환 (OCR 수행 X)
+     Firestore에서 최신 문서를 가져와 문서 유형별로 분류 후 반환 (OCR 수행 X)
     """
     try:
         user_id = request.GET.get("user_id")
@@ -130,7 +130,7 @@ def fetch_latest_documents(request): ### document문서들을 통합해서 저�
         if not docs:
             return JsonResponse({"error": "No images found"}, status=404)
 
-        # ✅ 최신 세션의 기준 시간 찾기
+        #  최신 세션의 기준 시간 찾기
         latest_upload_time = docs[0].to_dict().get("uploadDate")
         latest_session_documents = {"contract": [], "registry_document": [], "building_registry": []}
 
@@ -148,7 +148,7 @@ def fetch_latest_documents(request): ### document문서들을 통합해서 저�
         if not any(latest_session_documents.values()):
             return JsonResponse({"error": "No images found in recent session"}, status=404)
 
-        # ✅ OCR 수행 X, 이미지 URL만 반환
+        #  OCR 수행 X, 이미지 URL만 반환
         return JsonResponse({"classified_documents": latest_session_documents}, status=200)
 
     except Exception as e:
