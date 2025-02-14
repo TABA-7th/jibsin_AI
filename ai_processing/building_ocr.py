@@ -11,10 +11,12 @@ from io import BytesIO
 from PIL import Image
 
 # GPT 모델 설정
+secret_key = 'WVJnTm1OV2pZZVRvTlluYmlLS1lSbUlZQk5jcUxDZWw='  # 직접 값 설정
+api_url = 'https://tx6el9d54v.apigw.ntruss.com/custom/v1/38205/dffe650f3889e1adfe8a87fb4e7dd5e5f7b15247b02996892d2e319bd8000d1c/general'  # 직접 값 설정
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL = "gpt-4o"
-key = os.getenv("OCR_SECRET_KEY")
-url = os.getenv("OCR_API_URL")
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 def read_ocr(secret_key, api_url, image_data):
     """이미지 데이터에서 OCR 실행"""
@@ -24,19 +26,27 @@ def read_ocr(secret_key, api_url, image_data):
         'version': 'V2',
         'timestamp': int(round(time.time() * 1000))
     }
+    #이미지 처리
+    image = Image.open(BytesIO(image_data))
+    output_buffer = BytesIO()
+    image.save(output_buffer, format='JPEG', quality=95)
+    output_buffer.seek(0)
+    jpeg_data = output_buffer.getvalue()
 
     payload = {'message': json.dumps(request_json).encode('UTF-8')}
     files = [('file', ('image.jpg', image_data, 'image/jpeg'))]
     headers = {'X-OCR-SECRET': secret_key}
 
     response = requests.post(api_url, headers=headers, data=payload, files=files)
+
     if response.status_code == 200:
         ocr_results = response.json()
-        print("OCR Response:", ocr_results)
+
+        print("OCR Response:", ocr_results) # 응답 구조 확인
 
         all_data = []
-        for image_result in ocr_results.get['images']:
-            for field in image_result.get['fields']:
+        for image_result in ocr_results.get('images', []):
+            for field in image_result.get('fields', []):
                 text = field['inferText']
                 bounding_box = field['boundingPoly']['vertices']
                 x1, y1 = int(bounding_box[0]['x']), int(bounding_box[0]['y'])
@@ -73,17 +83,21 @@ def building_keyword_ocr(image_urls, doc_type):
     """Firebase URL에서 건축물대장 OCR 처리"""
     all_results = {}
     
-    for url in image_urls:
+    for image_url in image_urls:
         # URL에서 이미지 다운로드
-        response = requests.get(url)
+        response = requests.get(image_url)
         if response.status_code != 200:
             continue
             
         image_data = response.content
         
         # 1차 OCR 실행
-        df = read_ocr(key, url, image_data)
-        if df.empty:
+        try:
+            df = read_ocr(secret_key=secret_key, api_url=api_url, image_data=image_data)
+            if df.empty:
+                continue
+        except Exception as e:
+            print(f"OCR 처리 중 오류 발생: {e}")
             continue
 
         # 2차 GPT 분석
