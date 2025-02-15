@@ -2,10 +2,8 @@
 # urls -> views.py(api 엔드포인트) -> utils.py(기능구현)
 
 import firebase_admin
-from firebase_admin import credentials, storage
+from firebase_admin import credentials, storage, firestore 
 import os
-import json
-from google.cloud import firestore
 
 #  Firebase 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +15,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred, {
         'storageBucket': 'jibsin.firebasestorage.app'  #  Firebase 스토리지 버킷 이름
     })
-db = firestore.Client() # Firestore DB 초기화
+db = firebase_admin.firestore.client()
 
 def get_latest_images_by_type(): # Firebase Storage에서 가장 최근 업로드된 이미지 URL을 가져오는 함수.
     
@@ -46,3 +44,65 @@ def get_latest_images_by_type(): # Firebase Storage에서 가장 최근 업로�
 
     except Exception as e:
         return {"error": f"Firebase 이미지 가져오기 실패: {str(e)}"}
+    
+from google.cloud import firestore
+import json
+
+
+
+def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data):
+    """
+    현재 구조 - Firestore의 scanned_documents 컬렉션에 OCR 결과 저장
+    :param group_id: 문서 그룹 ID
+    :param document_type: 문서 타입 ('building_registry', 'registry_document', 'contract')
+    :param page_number: 페이지 번호
+    :param json_data: OCR 결과 JSON 데이터
+    """
+    try:
+
+        doc_path = f"scanned_documents/{group_id}"
+        print(f"Trying to update document at: {doc_path}")
+
+        # scanned_documents 컬렉션의 해당 문서 직접 참조
+        doc_ref = db.collection("scanned_documents").document(group_id)
+        
+        # 문서가 존재하는지 먼저 확인
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.update({
+                'result': json_data,
+                'status': 'completed'
+            })
+            print(f"✅ Firestore 저장 완료: {doc_path}")
+        else:
+            # 문서가 없으면 새로 생성
+            doc_ref.set({
+                'result': json_data,
+                'status': 'completed',
+                'type': document_type,
+                'pageNumber': page_number
+            })
+            print(f"✅ Firestore 새 문서 생성 완료: {doc_path}")
+    except Exception as e:
+        print(f"Firestore 저장 실패: {e}")
+
+"""
+# 목표 구조 - 추후 구현을 위해 주석 처리
+def save_ocr_result_to_analyses(user_id, contract_id, document_type, page_number, json_data):
+    
+    # analyses 컬렉션 구조로 저장
+    analyses_ref = (
+        db.collection("analyses")
+        .document("users")
+        .collection(user_id)
+        .document(contract_id)
+        .collection(document_type)
+        .document(f"page{page_number}.jpg")
+    )
+    
+    try:
+        analyses_ref.set(json_data)
+        print(f"✅ Firestore 저장 완료: analyses/users/{user_id}/{contract_id}/{document_type}/page{page_number}")
+    except Exception as e:
+        print(f"Firestore 저장 실패: {e}")
+"""

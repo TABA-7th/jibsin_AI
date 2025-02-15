@@ -10,6 +10,7 @@ import re
 from io import BytesIO
 from PIL import Image
 from dotenv import load_dotenv
+from firebase_api.utils import save_ocr_result_to_firestore
 
 # 환경 변수 로드
 load_dotenv()
@@ -18,7 +19,7 @@ load_dotenv()
 secret_key = os.getenv("OCR_SECRET_KEY")
 api_url = os.getenv("OCR_API_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL = "gpt-4o"
+MODEL = "gpt-4o" # 일단 클로드가 버전 바꾸라해서 바꾸는데 나중에 문제생기면 4-o로
 
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
@@ -87,6 +88,17 @@ def building_keyword_ocr(image_urls, doc_type):
     all_results = {}
     
     for image_url in image_urls:
+
+        # URL에서 group_id와 page_number 추출
+        group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_url).group(1)
+        page_number = re.search(r'page(\d+)\.jpg', image_url).group(1)
+        
+        """
+        # 목표 구조를 위한 변수 (주석 처리)
+        user_id = "test_user"  # 나중에 실제 사용자 ID로 변경
+        contract_id = "2nd_contract"  # 나중에 실제 계약 ID로 변경
+        """
+
         # URL에서 이미지 다운로드
         response = requests.get(image_url)
         if response.status_code != 200:
@@ -175,7 +187,34 @@ def building_keyword_ocr(image_urls, doc_type):
         )
 
         text = response.choices[0].message.content
-        output_file = f"ocr_results_building_registry.json" 
-        return save_json(text, output_file)
+        try:
+            json_data = json.loads(fix_json_format(text))
+            
+            # 현재 구조 - scanned_documents에 저장
+            save_ocr_result_to_firestore(
+                group_id=group_id,
+                document_type=doc_type,
+                page_number=int(page_number),
+                json_data=json_data
+            )
+            
+            """
+            # 목표 구조 - analyses 컬렉션에 저장 (주석 처리)
+            save_ocr_result_to_firestore(
+                user_id=user_id,
+                contract_id=contract_id,
+                document_type=doc_type,
+                page_number=int(page_number),
+                json_data=json_data
+            )
+            """
+            
+            
+            all_results[f"page{page_number}"] = json_data
+            
+        except json.JSONDecodeError as e:
+            print(f"JSON 파싱 오류: {e}")
+            continue
 
-    return None
+    return all_results if all_results else None
+
