@@ -45,8 +45,7 @@ def building_first_ocr(secret_key, api_url, image_data):
 
     if response.status_code == 200:
         ocr_results = response.json()
-
-        print("OCR Response:", ocr_results) # 응답 구조 확인
+# 응답 구조 확인
 
         all_data = []
         for image_result in ocr_results.get('images', []):
@@ -176,7 +175,7 @@ def building_keyword_ocr(image_urls, doc_type):
         )
 
         text = response.choices[0].message.content
-        output_file = f"ocr_result_{doc_type}.json"
+        output_file = f"ocr_results_building_registry.json" 
         return save_json(text, output_file)
 
     return None

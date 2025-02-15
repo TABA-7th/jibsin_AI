@@ -58,30 +58,38 @@ def run_all_ocr():
         #    all_results["registry_document"] = registry_result
     
     # 건축물대장 OCR 처리
-#    if firebase_document_data.get("building_registry"):
- #       building_result = building_keyword_ocr(
-  #          firebase_document_data.get("building_registry", []),
-   #         "building_registry"
-    #    )  
-     #   if building_result:
-      #      all_results["building_registry"] = building_result
-       #     # 개별 결과 파일 저장
-        #    with open(OCR_RESULTS["building_registry"], "w", encoding="utf-8") as f:
-         #       json.dump({"building_registry": building_result}, f, ensure_ascii=False, indent=4)
-          #  print(f"✅ 건축물대장 OCR 결과 저장 완료: {OCR_RESULTS['building_registry']}")
+    if firebase_document_data.get("building_registry"):
+        building_result = building_keyword_ocr(
+            firebase_document_data.get("building_registry", []),
+            "building_registry"
+        )  
+        if building_result:
+            # building_result를 직접 파일에서 읽어옴
+            try:
+                with open("ocr_results_building_registry.json", "r", encoding="utf-8") as f:
+                    building_data = json.load(f)
+                    all_results["building_registry"] = building_data
+                print(f"✅ 건축물대장 OCR 결과 저장 완료: {OCR_RESULTS['building_registry']}")
+            except Exception as e:
+                print(f"건축물대장 결과 파일 읽기 실패: {e}")
 
     # 계약서 OCR 처리 **** 완료 *****
-    if firebase_document_data.get("contract"):
-        contract_result = contract_keyword_ocr(
-            firebase_document_data.get("contract", []), 
-            "contract"
-        )
-        if contract_result:
-            all_results["contract"] = contract_result
-
-            with open(OCR_RESULTS["contract"], "w", encoding="utf-8") as f:
-                json.dump({"contract": contract_result}, f, ensure_ascii=False, indent=4)
-            print(f"✅ 계약서 OCR 결과 저장 완료: {OCR_RESULTS['contract']}")
+#    if firebase_document_data.get("contract"):
+ #       contract_result = contract_keyword_ocr(
+  #          firebase_document_data.get("contract", []), 
+   #         "contract"
+    #    )
+     #   if contract_result:
+      #      all_results["contract"] = contract_result
+#
+ #           with open(OCR_RESULTS["contract"], "w", encoding="utf-8") as f:
+  #              json.dump({"contract": contract_result}, f, ensure_ascii=False, indent=4)
+   #         print(f"✅ 계약서 OCR 결과 저장 완료: {OCR_RESULTS['contract']}")
+#
+ #           contract_json_file = "contract_ocr_result.json"
+  #          with open(contract_json_file, "w", encoding="utf-8") as f:
+   #             json.dump(contract_result, f, ensure_ascii=False, indent=4)
+    #        print(f"✅ 계약서 OCR 결과 파일 생성 완료: {contract_json_file}")
 
     try:
         # 전체 결과 저장

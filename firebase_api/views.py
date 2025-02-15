@@ -117,7 +117,7 @@ def fetch_latest_documents(request): ### document문서들을 통합해서 저�
     """
     try:
         user_id = request.GET.get("user_id")
-        session_threshold = timedelta(minutes=5)
+        session_threshold = timedelta(minutes=20)
 
         docs_ref = db.collection("scanned_documents")
         query = docs_ref.order_by("uploadDate", direction=firestore.Query.DESCENDING)
