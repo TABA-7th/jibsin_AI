@@ -227,7 +227,7 @@ def format_contract_json(text: str, output_file: str) -> str:
 
 def contract_keyword_ocr(image_urls, doc_type):
     """Firebase URLs에서 계약서 OCR 처리"""
-    merged_image = merge_images(image_urls) # 이미지 병합합 
+    merged_image = merge_images(image_urls) # 이미지 병합
     df = first_contract_ocr(merged_image)
     
     if df is None:
