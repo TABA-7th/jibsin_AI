@@ -215,60 +215,95 @@ def registry_keyword_ocr(image_urls, doc_type):
         print("OCR 처리 실패")
         return None
 
-    xy = registry_xy_mapping()
-    xy_json = xy.to_json(orient="records", force_ascii=False)
-    df_json = df.to_json(orient="records", force_ascii=False)
+    all_results = {}
 
-    target_texts = {
-        "종류": "등본 종류 (집합건물, 건물, 토지 중 하나)",
-        "(건물주소)": "[등본종류] 도로명 주소 (예: [집합건물] 정왕대로 53번길 29)",
-        "(갑구)":"텍스트",
-        "(소유권에 관한 사항)": "(소유권에 관한 사항)",
-        "(소유권 이외의 권리에 대한 사항)":"(소유권 이외의 권리에 대한 사항)",
-        "(채권최고액)": "최고채권액 금 ###원(예: 채권최고액 금1,000,000,000원)"
-    }
+    for image_url in image_urls:
+        # URL에서 group_id와 page_number 추출
+        group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_url).group(1)
+        page_number = re.search(r'page(\d+)', image_url).group(1)
+
+        xy = registry_xy_mapping()
+        xy_json = xy.to_json(orient="records", force_ascii=False)
+        df_json = df.to_json(orient="records", force_ascii=False)
+    
+    
+
+        target_texts = {
+            "종류": "등본 종류 (집합건물, 건물, 토지 중 하나)",
+            "(건물주소)": "[등본종류] 도로명 주소 (예: [집합건물] 정왕대로 53번길 29)",
+            "(갑구)":"텍스트",
+            "(소유권에 관한 사항)": "(소유권에 관한 사항)",
+            "(소유권 이외의 권리에 대한 사항)":"(소유권 이외의 권리에 대한 사항)",
+            "(채권최고액)": "최고채권액 금 ###원(예: 채권최고액 금1,000,000,000원)"
+        }
     
     
     # GPT 분석 요청
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": "JSON 형식으로만 응답하세요. 설명이나 마크다운은 포함하지 마세요."
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            f"다음은 OCR 분석을 위한 데이터입니다.\n\n"
-                            f"✅ **위치 데이터 (xy):**\n{xy_json}\n\n"
-                            f"✅ **내용 데이터 (df):**\n{df_json}\n\n"
-                            f"💡 **작업 목표:**\n"
-                            f"- 등기부등본에서 **건물 주소, 갑구(소유권), 을구(권리 사항)** 정보를 추출\n"
-                            f"- 내용이 없으면 'NA'로 표시\n\n"
-                            f"📌 **출력 형식:**\n"
-                            f"```json\n"
-                            f"{{\n"
-                            f"  \"건물주소\": {{ \"text\": \"서울특별시 강남구 테헤란로 123\", \"bounding_box\": {{ \"x1\": 120, \"y1\": 220, \"x2\": 320, \"y2\": 270 }} }},\n"
-                            f"  \"갑구\": {{ \"text\": \"(갑구) 소유권 관련 내용\", \"bounding_box\": {{ \"x1\": 86, \"y1\": 3842, \"x2\": 654, \"y2\": 3898 }} }},\n"
-                            f"  \"을구\": {{ \"text\": \"(을구) 권리 사항 내용\", \"bounding_box\": {{ \"x1\": 88, \"y1\": 4562, \"x2\": 796, \"y2\": 4608 }} }}\n"
-                            f"}}\n"
-                            f"```"
-                        )
-                    }
-                ]
-            }
-        ],
-        max_tokens=5000,
-        temperature=0.2,
-        top_p=1.0
-    )
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "JSON 형식으로만 응답하세요. 설명이나 마크다운은 포함하지 마세요."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                f"다음은 OCR 분석을 위한 데이터입니다.\n\n"
+                                f"✅ **위치 데이터 (xy):**\n{xy_json}\n\n"
+                                f"✅ **내용 데이터 (df):**\n{df_json}\n\n"
+                                f"💡 **작업 목표:**\n"
+                                f"- 등기부등본에서 **건물 주소, 갑구(소유권), 을구(권리 사항)** 정보를 추출\n"
+                                f"- 내용이 없으면 'NA'로 표시\n\n"
+                                f"📌 **출력 형식:**\n"
+                                f"```json\n"
+                                f"{{\n"
+                                f"  \"건물주소\": {{ \"text\": \"서울특별시 강남구 테헤란로 123\", \"bounding_box\": {{ \"x1\": 120, \"y1\": 220, \"x2\": 320, \"y2\": 270 }} }},\n"
+                                f"  \"갑구\": {{ \"text\": \"(갑구) 소유권 관련 내용\", \"bounding_box\": {{ \"x1\": 86, \"y1\": 3842, \"x2\": 654, \"y2\": 3898 }} }},\n"
+                                f"  \"을구\": {{ \"text\": \"(을구) 권리 사항 내용\", \"bounding_box\": {{ \"x1\": 88, \"y1\": 4562, \"x2\": 796, \"y2\": 4608 }} }}\n"
+                                f"}}\n"
+                                f"```"
+                            )
+                        }
+                    ]
+                }
+            ],
+            max_tokens=5000,
+            temperature=0.2,
+            top_p=1.0
+        )
+        
+        text = response.choices[0].message.content
+        try:
+            json_data = json.loads(fix_json_format(text))
+            
+            # 현재 구조 - scanned_documents에 저장
+            save_ocr_result_to_firestore(
+                group_id=group_id,
+                document_type=doc_type,
+                page_number=int(page_number),
+                json_data=json_data
+            )
+            
+            """
+            # 목표 구조 - analyses 컬렉션에 저장 (주석 처리)
+            save_ocr_result_to_firestore(
+                user_id=user_id,
+                contract_id=contract_id,
+                document_type=doc_type,
+                page_number=int(page_number),
+                json_data=json_data
+            )
+            """
+            
+            
+            all_results[f"page{page_number}"] = json_data
+            
+        except json.JSONDecodeError as e:
+            print(f"JSON 파싱 오류: {e}")
+            continue
 
-    # 응답 처리
-    text = response.choices[0].message.content.strip()
-    output_path = f"./ocr_results_registry.json"
-    
-    return format_registry_json(text, output_path)
+    return all_results if all_results else None

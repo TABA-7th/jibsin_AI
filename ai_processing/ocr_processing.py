@@ -48,21 +48,41 @@ def run_all_ocr():
 
     all_results = {}
 
+    # # 등기부등본 OCR 처리
+    # if firebase_document_data.get("registry_document"):
+    #     registry_result = registry_keyword_ocr(
+    #         firebase_document_data.get("registry_document", []), 
+    #         "registry_document"
+    #     )
+    #     if registry_result:
+    #         try:
+    #             # 등기부등본 OCR 결과 파일 읽기
+    #             with open(registry_result, "r", encoding="utf-8") as f:
+    #                 registry_data = json.load(f)
+    #                 all_results["registry_document"] = registry_data
+    #             print(f"✅ 등기부등본 OCR 결과 저장 완료: {registry_result}")
+    #         except Exception as e:
+    #             print(f"등기부등본 결과 파일 읽기 실패: {e}")
+
     # 등기부등본 OCR 처리
     if firebase_document_data.get("registry_document"):
         registry_result = registry_keyword_ocr(
             firebase_document_data.get("registry_document", []), 
             "registry_document"
-        )
+        )  
         if registry_result:
+            # building_result를 직접 파일에서 읽어옴
+            all_results["registry_document"] = registry_result # 파일에도 저장
+
             try:
-                # 등기부등본 OCR 결과 파일 읽기
-                with open(registry_result, "r", encoding="utf-8") as f:
-                    registry_data = json.load(f)
-                    all_results["registry_document"] = registry_data
-                print(f"✅ 등기부등본 OCR 결과 저장 완료: {registry_result}")
+                with open(OCR_RESULTS["registry_document"], "w", encoding="utf-8") as f:
+                    json.dump({"registry_document": registry_result}, f, ensure_ascii=False, indent=4)
+                print(f"✅ 등기부등본 OCR 결과 저장 완료: {OCR_RESULTS['registry_document']}")
             except Exception as e:
-                print(f"등기부등본 결과 파일 읽기 실패: {e}")
+                print(f"등기부등본 결과 파일 저장 실패: {e}")
+        else:
+            print("등기부등본 OCR 결과가 없습니다.")
+    
     
     #  #건축물대장 OCR 처리
     # if firebase_document_data.get("building_registry"):
