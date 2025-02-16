@@ -72,11 +72,11 @@ def run_all_ocr():
     #     )  
     #     if registry_result:
     #         # building_result를 직접 파일에서 읽어옴
-    #         all_results["registry_document"] = registry_result # 파일에도 저장
+    #         all_results["registry_document"] = registry_result.get("registry_document", registry_result) # 파일에도 저장
 
     #         try:
     #             with open(OCR_RESULTS["registry_document"], "w", encoding="utf-8") as f:
-    #                 json.dump({"registry_document": registry_result}, f, ensure_ascii=False, indent=4)
+    #                 json.dump(registry_result, f, ensure_ascii=False, indent=4)
     #             print(f"✅ 등기부등본 OCR 결과 저장 완료: {OCR_RESULTS['registry_document']}")
     #         except Exception as e:
     #             print(f"등기부등본 결과 파일 저장 실패: {e}")
@@ -84,21 +84,19 @@ def run_all_ocr():
     #         print("등기부등본 OCR 결과가 없습니다.")
     
     
-    #  #건축물대장 OCR 처리
+     #건축물대장 OCR 처리
     # if firebase_document_data.get("building_registry"):
     #     building_result = building_keyword_ocr(
     #         firebase_document_data.get("building_registry", []),
     #         "building_registry"
     #     )  
     #     if building_result:
-    #         # building_result를 직접 파일에서 읽어옴
-
          
-    #         all_results["building_registry"] = building_result # 파일에도 저장
+    #         all_results["building_registry"] = building_result.get("building_registry", building_result)# 파일에도 저장
 
     #         try:
     #             with open(OCR_RESULTS["building_registry"], "w", encoding="utf-8") as f:
-    #                 json.dump({"building_registry": building_result}, f, ensure_ascii=False, indent=4)
+    #                 json.dump(building_result, f, ensure_ascii=False, indent=4)
     #             print(f"✅ 건축물대장 OCR 결과 저장 완료: {OCR_RESULTS['building_registry']}")
     #         except Exception as e:
     #             print(f"건축물대장 결과 파일 저장 실패: {e}")
@@ -113,23 +111,31 @@ def run_all_ocr():
             "contract"
         )
         if contract_result:
+            all_results["contract"] = contract_result.get("contract", contract_result)  # 바로 결과 저장
             try:
-                # 계약서 OCR 결과 파일 읽기
-                with open("ocr_result_contract.json", "r", encoding="utf-8") as f:
-                    contract_data = json.load(f)
-                    all_results["contract"] = contract_data
+                with open(OCR_RESULTS["contract"], "w", encoding="utf-8") as f:
+                    json.dump(contract_result, f, ensure_ascii=False, indent=4) # 중첩 제거
                 print(f"✅ 계약서 OCR 결과 저장 완료: {OCR_RESULTS['contract']}")
             except Exception as e:
-                print(f"계약서 결과 파일 읽기 실패: {e}")
+                print(f"계약서 결과 파일 저장 실패: {e}")
+        else:
+            print("계약서 OCR 결과가 없습니다.")
 
     try:
-        # 전체 결과 저장
+        # 전체 결과 저장 - 중첩 확실히 제거
         with open(ALL_RESULTS_FILE, "w", encoding="utf-8") as f:
-            json.dump(all_results, f, ensure_ascii=False, indent=4)
+            # 결과가 중첩되어 있으면 내부 데이터만 사용
+            final_results = {}
+            for key, value in all_results.items():
+                if isinstance(value, dict) and key in value:
+                    final_results[key] = value[key]
+                else:
+                    final_results[key] = value
+            json.dump(final_results, f, ensure_ascii=False, indent=4)
         print(f"✅ 전체 OCR 결과 저장 완료: {ALL_RESULTS_FILE}")
         return ALL_RESULTS_FILE
     except Exception as e:
-        print(f" OCR 결과 저장 실패: {e}")
+        print(f"OCR 결과 저장 실패: {e}")
         return None
 
 #  실행 코드 추가

@@ -4,6 +4,7 @@
 import firebase_admin
 from firebase_admin import credentials, storage, firestore 
 import os
+from google.cloud.firestore import FieldFilter
 
 #  Firebase 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -60,7 +61,11 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
     """
     try:
         # scanned_documents 컬렉션에서 해당 페이지 문서 조회
-        scanned_docs = db.collection("scanned_documents").where("groupId", "==", group_id).where("type", "==", document_type).where("pageNumber", "==", page_number).get()
+        query = db.collection("scanned_documents")
+        query = query.where(filter=FieldFilter("groupId", "==", group_id))
+        query = query.where(filter=FieldFilter("type", "==", document_type))
+        query = query.where(filter=FieldFilter("pageNumber", "==", page_number))
+        scanned_docs = query.get()
         
         if not scanned_docs:
             print(f"해당하는 문서를 찾을 수 없습니다: groupId={group_id}, type={document_type}, page={page_number}")
