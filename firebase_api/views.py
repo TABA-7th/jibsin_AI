@@ -117,7 +117,7 @@ def fetch_latest_documents(request): ### document문서들을 통합해서 저�
     """
     try:
         user_id = request.GET.get("user_id")
-        session_threshold = timedelta(minutes=20)
+        session_threshold = timedelta(minutes=30)
 
         docs_ref = db.collection("scanned_documents")
         query = docs_ref.order_by("uploadDate", direction=firestore.Query.DESCENDING)
@@ -134,16 +134,37 @@ def fetch_latest_documents(request): ### document문서들을 통합해서 저�
         latest_upload_time = docs[0].to_dict().get("uploadDate")
         latest_session_documents = {"contract": [], "registry_document": [], "building_registry": []}
 
+        # 최신 세션의 문서들을 임시 저장할 딕셔너리
+        temp_documents = {
+            "contract": [],
+            "registry_document": [],
+            "building_registry": []
+        }
+
         for doc in docs:
             data = doc.to_dict()
             image_upload_time = data.get("uploadDate")
             doc_type = data.get("type", "unknown")
 
             if image_upload_time and abs(image_upload_time - latest_upload_time) <= session_threshold:
-                if doc_type in latest_session_documents:
-                    latest_session_documents[doc_type].append(data["imageUrl"])
+                if doc_type in temp_documents:
+                    temp_documents[doc_type].append({
+                        'imageUrl': data["imageUrl"],
+                        'pageNumber': data.get("pageNumber", 1),  # 페이지 번호가 없으면 1로 기본 설정
+                        'uploadDate': image_upload_time
+                    })
+        
             else:
                 break  # 최신 세션이 끝났으므로 더 이상 가져오지 않음
+
+        # 각 문서 타입별로 페이지 번호순으로 정렬하여 URL 리스트 생성
+        for doc_type in temp_documents:
+            if temp_documents[doc_type]:
+                # 페이지 번호로 정렬
+                sorted_docs = sorted(temp_documents[doc_type], key=lambda x: x['pageNumber'])
+                # URL만 추출하여 저장
+                latest_session_documents[doc_type] = [doc['imageUrl'] for doc in sorted_docs]
+                print(f"✅ {doc_type} 정렬 완료: {len(latest_session_documents[doc_type])} 페이지")
 
         if not any(latest_session_documents.values()):
             return JsonResponse({"error": "No images found in recent session"}, status=404)
@@ -152,6 +173,7 @@ def fetch_latest_documents(request): ### document문서들을 통합해서 저�
         return JsonResponse({"classified_documents": latest_session_documents}, status=200)
 
     except Exception as e:
+        print(f"❌ 문서 조회 중 오류 발생: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
     

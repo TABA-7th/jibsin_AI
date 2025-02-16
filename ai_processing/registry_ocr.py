@@ -85,9 +85,9 @@ def merge_images(image_urls):
             # 다시 PIL Image로 변환
             images.append(Image.fromarray(cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)))
     
+    # 이미지 병합
     total_height = sum(img.height for img in images)
     max_width = max(img.width for img in images)
-
     merged_image = Image.new("RGB", (max_width, total_height))
 
     # 이미지 붙이기
@@ -208,6 +208,7 @@ def registry_keyword_ocr(image_urls, doc_type):
     # 이미지 병합
     merged_image = merge_images(image_urls)
     
+    
     # OCR 수행
     df = cre_ocr(merged_image)
     
@@ -216,17 +217,30 @@ def registry_keyword_ocr(image_urls, doc_type):
         return None
 
     all_results = {}
-
-    for image_url in image_urls:
+    page_height = 1755
+    
+    for idx, image_url in enumerate(image_urls):
         # URL에서 group_id와 page_number 추출
         group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_url).group(1)
         page_number = re.search(r'page(\d+)', image_url).group(1)
 
+        # 현재 페이지의 y 좌표 범위 계산
+        y_start = idx * page_height
+        y_end = (idx + 1) * page_height
+
+        # 현재 페이지에 해당하는 OCR 결과만 필터링
+        page_df = df[
+            (df['y1'] >= y_start) & 
+            (df['y1'] < y_end)
+        ].copy()
+
+        # y 좌표 조정 (페이지 내 상대 좌표로 변환)
+        page_df['y1'] = page_df['y1'] - y_start
+        page_df['y2'] = page_df['y2'] - y_start
+
         xy = registry_xy_mapping()
         xy_json = xy.to_json(orient="records", force_ascii=False)
-        df_json = df.to_json(orient="records", force_ascii=False)
-    
-    
+        page_df_json = page_df.to_json(orient="records", force_ascii=False)
 
         target_texts = {
             "종류": "등본 종류 (집합건물, 건물, 토지 중 하나)",
@@ -254,10 +268,10 @@ def registry_keyword_ocr(image_urls, doc_type):
                         "text": (
                             f"다음은 OCR 분석을 위한 데이터입니다.\n\n"
                             f"**위치 데이터 (xy):**\n{xy_json}\n\n"
-                            f"**내용 데이터 (df):**\n{df_json}\n\n"
+                            f"**내용 데이터 (df):**\n{page_df_json}\n\n"
                             f"**작업 목표:**\n"
                             f"- 내용이 없으면 'NA'로 표시\n\n"
-                            f"- `xy` 데이터의 위치 정보(좌표)를 활용하여 `df` 데이터와 매칭. {xy_json}의 위치는 참고만하고 항상 {df_json}을 따른다.\n"
+                            f"- `xy` 데이터의 위치 정보(좌표)를 활용하여 `df` 데이터와 매칭. {xy_json}의 위치는 참고만하고 항상 {page_df_json}을 따른다.\n"
                             f"- 'xy' 데이터의 바운딩 박스 크기는 'df'에 맞게 조정된다"
                             f"🔹 **각 항목의 출력 형식:**\n"
                             + "\n".join([f"- **{key}**: {value}" for key, value in target_texts.items()]) +
@@ -294,8 +308,14 @@ def registry_keyword_ocr(image_urls, doc_type):
         
         text = response.choices[0].message.content
         try:
-            json_data = json.loads(fix_json_format(text))
+            # format_registry_json 함수 사용
+            output_file = f"ocr_result_page_{page_number}.json"
+            formatted_result = format_registry_json(text, output_file)
             
+            # JSON 파일 읽기
+            with open(formatted_result, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+
             # 현재 구조 - scanned_documents에 저장
             save_ocr_result_to_firestore(
                 group_id=group_id,
