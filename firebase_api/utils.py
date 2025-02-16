@@ -60,11 +60,11 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
     """
     try:
 
-        doc_path = f"scanned_documents/{group_id}"
+        doc_path = f"analyses_ref/{group_id}"
         print(f"Trying to update document at: {doc_path}")
 
         # scanned_documents 컬렉션의 해당 문서 직접 참조
-        doc_ref = db.collection("scanned_documents").document(group_id)
+        doc_ref = db.collection("analyses_ref").document(group_id)
         
         # 문서가 존재하는지 먼저 확인
         doc = doc_ref.get()
