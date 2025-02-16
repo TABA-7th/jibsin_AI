@@ -59,32 +59,62 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
     :param json_data: OCR 결과 JSON 데이터
     """
     try:
+        # scanned_documents 컬렉션에서 해당 페이지 문서 조회
+        scanned_docs = db.collection("scanned_documents").where("groupId", "==", group_id).where("type", "==", document_type).where("pageNumber", "==", page_number).get()
+        
+        if not scanned_docs:
+            print(f"해당하는 문서를 찾을 수 없습니다: groupId={group_id}, type={document_type}, page={page_number}")
+            return
 
-        doc_path = f"analyses_ref/{group_id}"
+        # 첫 번째 문서에서 userId 가져오기
+        doc_data = scanned_docs[0].to_dict()
+        user_id = doc_data.get('userId')
+        if not user_id:
+            print("userId를 찾을 수 없습니다")
+            return
+
+
+        doc_path = f"analyses/users/{user_id}/{document_type}_{page_number}"
         print(f"Trying to update document at: {doc_path}")
 
-        # scanned_documents 컬렉션의 해당 문서 직접 참조
-        doc_ref = db.collection("analyses_ref").document(group_id)
-        
+
+        analyses_ref = (
+            db.collection("analyses")  # collection
+            .document("users")         # document
+            .collection(user_id)       # collection
+            .document(f"{document_type}_{page_number}")  # document
+        )
+
         # 문서가 존재하는지 먼저 확인
-        doc = doc_ref.get()
+        doc = analyses_ref.get()
+
         if doc.exists:
-            doc_ref.update({
-                'result': json_data,
-                'status': 'completed'
-            })
-            print(f"✅ Firestore 저장 완료: {doc_path}")
+                # 기존 문서 업데이트
+                analyses_ref.update({
+                    'result': json_data,
+                    'status': 'completed',
+                    'pageNumber': page_number,
+                    'groupId': group_id,
+                    'updatedAt': firestore.SERVER_TIMESTAMP
+                })
+                print(f"✅ Firestore 업데이트 완료: {doc_path}")
         else:
-            # 문서가 없으면 새로 생성
-            doc_ref.set({
-                'result': json_data,
-                'status': 'completed',
-                'type': document_type,
-                'pageNumber': page_number
-            })
-            print(f"✅ Firestore 새 문서 생성 완료: {doc_path}")
+                # 새 문서 생성
+                analyses_ref.set({
+                    'result': json_data,
+                    'status': 'completed',
+                    'type': document_type,
+                    'pageNumber': page_number,
+                    'groupId': group_id,
+                    'userId': user_id,
+                    'createdAt': firestore.SERVER_TIMESTAMP,
+                    'updatedAt': firestore.SERVER_TIMESTAMP
+                })
+                print(f"✅ Firestore 새 문서 생성 완료: {doc_path}")
+
     except Exception as e:
-        print(f"Firestore 저장 실패: {e}")
+        print(f"❌ Firestore 저장 실패: {e}")
+        raise e
 
 """
 # 목표 구조 - 추후 구현을 위해 주석 처리
