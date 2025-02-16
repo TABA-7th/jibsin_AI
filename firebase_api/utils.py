@@ -97,7 +97,7 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
                     'groupId': group_id,
                     'updatedAt': firestore.SERVER_TIMESTAMP
                 })
-                print(f"✅ Firestore 업데이트 완료: {doc_path}")
+                print(f"✅ Firestore 업데이트 완료")
         else:
                 # 새 문서 생성
                 analyses_ref.set({
@@ -110,10 +110,10 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
                     'createdAt': firestore.SERVER_TIMESTAMP,
                     'updatedAt': firestore.SERVER_TIMESTAMP
                 })
-                print(f"✅ Firestore 새 문서 생성 완료: {doc_path}")
+                print(f"✅ Firestore 새 문서 생성 완료")
 
     except Exception as e:
-        print(f"❌ Firestore 저장 실패: {e}")
+        print(f" Firestore 저장 실패: {e}")
         raise e
 
 """
