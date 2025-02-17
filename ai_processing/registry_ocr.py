@@ -25,7 +25,7 @@ MODEL = "gpt-4o" # 일단 클로드가 버전 바꾸라해서 바꾸는데 나�
 
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 #계약서원본양식
-def registry_xy_mapping():
+def base_xy():
     rows = [
         ['등기사항전부증명서',348,112,934,162],
         ['집합건물',520,166,766,216],
@@ -96,10 +96,23 @@ def merge_images(image_urls):
         merged_image.paste(img, (0, y_offset))
         y_offset += img.height
     
-    # 병합된 이미지 저장
-    merged_image.save("merged_registry_image.jpg")
-    
     return merged_image
+
+def get_page_of_text(y_coordinate, page_count):
+    """
+    y 좌표를 기준으로 어떤 페이지에 있는지 판단하는 함수
+    
+    :param y_coordinate: 텍스트의 y 좌표
+    :param page_count: 전체 페이지 수
+    :return: 해당 텍스트가 있는 페이지 번호
+    """
+    page_height = 1755  # 각 페이지의 높이
+    
+    for page in range(1, page_count + 1):
+        if (page - 1) * page_height <= y_coordinate < page * page_height:
+            return page
+    
+    return 1  # 기본값으로 첫 페이지 반환
 
 def cre_ocr(image):
     """PIL Image 객체에 대해 OCR 실행"""
@@ -205,44 +218,33 @@ def format_registry_json(text: str, output_file: str) -> str:
 
 def registry_keyword_ocr(image_urls, doc_type):
     """메인 OCR 처리 함수"""
+    # URL에서 group_id 추출
+    group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_urls[0]).group(1)
+    
     # 이미지 병합
     merged_image = merge_images(image_urls)
     
+    all_dfs = []
+    y = 0
     
     # OCR 수행
     df = cre_ocr(merged_image)
+    df["y1"] += y
+    df["y2"] += y
+    all_dfs.append(df)
+    y += 1755
     
-    if df is None:
-        print("OCR 처리 실패")
-        return None
+    merged_df = pd.concat(all_dfs, ignore_index=True)
 
-    all_results = {}
-    page_height = 1755
-    
-    for idx, image_url in enumerate(image_urls):
-        # URL에서 group_id와 page_number 추출
-        group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_url).group(1)
-        page_number = re.search(r'page(\d+)', image_url).group(1)
+    xy = base_xy()
+    xy_json = xy.to_json(orient="records", force_ascii=False)
+    df_json = merged_df.to_json(orient="records", force_ascii=False)
 
-        # 현재 페이지의 y 좌표 범위 계산
-        y_start = idx * page_height
-        y_end = (idx + 1) * page_height
+    current_page = re.search(r'page(\d+)', image_urls[0]).group(1)
+    page_number = int(current_page)  # str을 int로 변환
+    page_count = len(image_urls)  # 전체 페이지 수
 
-        # 현재 페이지에 해당하는 OCR 결과만 필터링
-        page_df = df[
-            (df['y1'] >= y_start) & 
-            (df['y1'] < y_end)
-        ].copy()
-
-        # y 좌표 조정 (페이지 내 상대 좌표로 변환)
-        page_df['y1'] = page_df['y1'] - y_start
-        page_df['y2'] = page_df['y2'] - y_start
-
-        xy = registry_xy_mapping()
-        xy_json = xy.to_json(orient="records", force_ascii=False)
-        page_df_json = page_df.to_json(orient="records", force_ascii=False)
-
-        target_texts = {
+    target_texts = {
             "종류": "등본 종류 (집합건물, 건물, 토지 중 하나)",
             "(건물주소)": "[등본종류] 도로명 주소 (예: [집합건물] 정왕대로 53번길 29)",
             "(갑구)":"텍스트",
@@ -253,7 +255,7 @@ def registry_keyword_ocr(image_urls, doc_type):
     
     
     # GPT 분석 요청
-        response = client.chat.completions.create(
+    response = client.chat.completions.create(
             model=MODEL,
             messages=[
                 {
@@ -268,10 +270,10 @@ def registry_keyword_ocr(image_urls, doc_type):
                         "text": (
                             f"다음은 OCR 분석을 위한 데이터입니다.\n\n"
                             f"**위치 데이터 (xy):**\n{xy_json}\n\n"
-                            f"**내용 데이터 (df):**\n{page_df_json}\n\n"
+                            f"**내용 데이터 (df):**\n{df_json}\n\n"
                             f"**작업 목표:**\n"
                             f"- 내용이 없으면 'NA'로 표시\n\n"
-                            f"- `xy` 데이터의 위치 정보(좌표)를 활용하여 `df` 데이터와 매칭. {xy_json}의 위치는 참고만하고 항상 {page_df_json}을 따른다.\n"
+                            f"- `xy` 데이터의 위치 정보(좌표)를 활용하여 `df` 데이터와 매칭. {xy_json}의 위치는 참고만하고 항상 {df_json}을 따른다.\n"
                             f"- 'xy' 데이터의 바운딩 박스 크기는 'df'에 맞게 조정된다"
                             f"🔹 **각 항목의 출력 형식:**\n"
                             + "\n".join([f"- **{key}**: {value}" for key, value in target_texts.items()]) +
@@ -306,40 +308,49 @@ def registry_keyword_ocr(image_urls, doc_type):
             top_p=1.0
         )
         
-        text = response.choices[0].message.content
-        try:
-            # format_registry_json 함수 사용
-            output_file = f"ocr_result_page_{page_number}.json"
-            formatted_result = format_registry_json(text, output_file)
-            
-            # JSON 파일 읽기
-            with open(formatted_result, 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
+    text = response.choices[0].message.content.strip()
+    data = json.loads(fix_json_format(text))
 
-            # 현재 구조 - scanned_documents에 저장
-            save_ocr_result_to_firestore(
-                group_id=group_id,
-                document_type=doc_type,
-                page_number=int(page_number),
-                json_data=json_data
-            )
+    page_structured_data = {}
+    
+    for key, value in data.items():
+        if isinstance(value, dict) and "bounding_box" in value:
+            page_number = get_page_of_text(value["bounding_box"]["y1"], page_count)
+            page_key = f"page{page_number}"
             
-            """
-            # 목표 구조 - analyses 컬렉션에 저장 (주석 처리)
-            save_ocr_result_to_firestore(
-                user_id=user_id,
-                contract_id=contract_id,
-                document_type=doc_type,
-                page_number=int(page_number),
-                json_data=json_data
-            )
-            """
+            # 페이지별 딕셔너리 초기화
+            if page_key not in page_structured_data:
+                page_structured_data[page_key] = {}
             
-            
-            all_results[f"page{page_number}"] = json_data
-            
-        except json.JSONDecodeError as e:
-            print(f"JSON 파싱 오류: {e}")
-            continue
+            # 해당 페이지에 데이터 추가
+            page_structured_data[page_key][key] = value
 
-    return all_results if all_results else None
+    # 기존의 갑구 및 불필요한 필드 처리 로직
+    y1_value = data.get("(소유권에 관한 사항)", {}).get("bounding_box", {}).get("y2", "값 없음")
+    y2_value = data.get("(소유권 이외의 권리에 관한 사항)", {}).get("bounding_box", {}).get("y1", "값 없음")
+
+    if isinstance(y1_value, (int, float)) and isinstance(y2_value, (int, float)):
+        # 갑구의 페이지 결정
+        갑구_page = get_page_of_text(y1_value, page_count)
+        page_structured_data[f"page{갑구_page}"]["갑구"] = {
+            "text": "(갑구)",
+            "bounding_box": {
+                "x1": 0,
+                "y1": y1_value,
+                "x2": 1200,
+                "y2": y2_value
+            }
+        }
+
+    # Firestore에 저장
+    for page_key, page_data in page_structured_data.items():
+        page_number = int(page_key.replace('page', ''))
+        
+        save_ocr_result_to_firestore(
+            group_id=group_id,
+            document_type=doc_type,
+            page_number=page_number,
+            json_data=page_data
+        )
+
+    return page_structured_data
