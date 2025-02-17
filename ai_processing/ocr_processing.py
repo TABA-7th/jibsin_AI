@@ -4,6 +4,7 @@ import requests
 from ai_processing.registry_ocr import registry_keyword_ocr #  OCR 모듈 직접 가져오기
 from ai_processing.contract_ocr import contract_keyword_ocr 
 from ai_processing.building_ocr import building_keyword_ocr
+from firebase_api.utils import save_ocr_result_to_firestore
 from firebase_api.views import fetch_latest_documents  
 
 OCR_RESULTS = {
@@ -104,7 +105,7 @@ def run_all_ocr():
     #         print("건축물대장 OCR 결과가 없습니다.")
 
 
-    # # 계약서 OCR 처리 **** 완료 *****
+    # 계약서 OCR 처리 **** 완료 *****
     # if firebase_document_data.get("contract"):
     #     contract_result = contract_keyword_ocr(
     #         firebase_document_data.get("contract", []), 

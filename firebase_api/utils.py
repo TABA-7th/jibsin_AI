@@ -74,6 +74,7 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
         # 첫 번째 문서에서 userId 가져오기
         doc_data = scanned_docs[0].to_dict()
         user_id = doc_data.get('userId')
+        image_url = doc_data.get('imageUrl')
         if not user_id:
             print("userId를 찾을 수 없습니다")
             return
@@ -100,6 +101,7 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
                     'status': 'completed',
                     'pageNumber': page_number,
                     'groupId': group_id,
+                    'imageUrl': image_url,
                     'updatedAt': firestore.SERVER_TIMESTAMP
                 })
                 print(f"✅ Firestore 업데이트 완료")
@@ -112,6 +114,7 @@ def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data
                     'pageNumber': page_number,
                     'groupId': group_id,
                     'userId': user_id,
+                    'imageUrl': image_url,
                     'createdAt': firestore.SERVER_TIMESTAMP,
                     'updatedAt': firestore.SERVER_TIMESTAMP
                 })
