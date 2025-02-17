@@ -221,6 +221,8 @@ def registry_keyword_ocr(image_urls, doc_type):
     # URL에서 group_id 추출
     group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_urls[0]).group(1)
     
+    page_numbers = [int(re.search(r'page(\d+)', url).group(1)) for url in image_urls]
+
     # 이미지 병합
     merged_image = merge_images(image_urls)
     
@@ -315,8 +317,9 @@ def registry_keyword_ocr(image_urls, doc_type):
     
     for key, value in data.items():
         if isinstance(value, dict) and "bounding_box" in value:
-            page_number = get_page_of_text(value["bounding_box"]["y1"], page_count)
-            page_key = f"page{page_number}"
+            # 원본 페이지 번호 기준으로 페이지 결정
+            page_index = get_page_of_text(value["bounding_box"]["y1"], page_count)
+            page_key = f"page{page_numbers[page_index - 1]}"
             
             # 페이지별 딕셔너리 초기화
             if page_key not in page_structured_data:
@@ -331,8 +334,9 @@ def registry_keyword_ocr(image_urls, doc_type):
 
     if isinstance(y1_value, (int, float)) and isinstance(y2_value, (int, float)):
         # 갑구의 페이지 결정
-        갑구_page = get_page_of_text(y1_value, page_count)
-        page_structured_data[f"page{갑구_page}"]["갑구"] = {
+        갑구_page_index = get_page_of_text(y1_value, page_count)
+        page_key = f"page{page_numbers[갑구_page_index - 1]}"
+        page_structured_data[page_key]["갑구"] = {
             "text": "(갑구)",
             "bounding_box": {
                 "x1": 0,
