@@ -2,11 +2,19 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
+from firebase_admin import firestore
+from typing import Dict, Optional
 
 from .registry_ocr import registry_keyword_ocr
 from .contract_ocr import contract_keyword_ocr
 from .building_ocr import building_keyword_ocr
 from firebase_api.views import fetch_latest_documents
+from firebase_api.utils import (
+    get_latest_analysis_results,
+    save_combined_results,
+    save_analysis_result
+)
+
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -71,7 +79,7 @@ def run_ocr(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def analysis(request):
+def start_analysis(request):
     """
     AI 분석 엔드포인트
     """

@@ -11,7 +11,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from ai_processing.ocr import registry_ocr
+from ai_processing.ocr import registry_ocr #굳이..?
+
 # 환경 변수 로드
 load_dotenv()
 
@@ -46,69 +47,8 @@ def test_firebase_connection(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
-# 실제 Storage가 없으므로, 가짜 JSON 응답을 반환
-# def get_fake_images(request):
-    
-    fake_image_urls = [
-        "https://via.placeholder.com/150",
-        "https://via.placeholder.com/200",
-        "https://via.placeholder.com/250"
-    ]
-     # 테스트용 임시 이미지
-    return JsonResponse({"image_url": fake_image_urls})
 
 
-# OCR로 추출된 계약서 JSON 데이터를 GPT에 입력하고 법률적 분석을 수행하는 API. 위치가 잘못됨 수정해야됨!
-#@csrf_exempt  # CSRF 보호 해제 (POST 요청 허용)
-# def analyze_contract(request):
-   
-    try:
-        # OCR JSON 파일 읽기
-        if not os.path.exists(OCR_JSON_PATH):
-            return JsonResponse({"error": " OCR JSON 파일이 존재하지 않습니다!"}, status=400)
-
-        with open(OCR_JSON_PATH, "r", encoding="utf-8") as f:
-            request_data = json.load(f)  # OCR 결과 JSON 로드
-
-        # OpenAI API 호출
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "당신은 법률 전문가입니다. 주어진 정보가 계약서인지, 건축물 등본인지, 등기부등본인지 알아내어 분석하고 사용자에게 주의할 점을 알려주세요."},
-                {"role": "user", "content": f"다음 계약서를 분석하고, 주의해야 할 점을 알려줘: {json.dumps(request_data, ensure_ascii=False)}"}
-            ],
-            max_tokens=500
-        )
-
-        # GPT 응답
-        analysis_result = response.choices[0].message.content
-        return JsonResponse({"analysis": analysis_result}, status=200)
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-    
-    
-
-""" def get_images(request): 
-    bucket = storage.bucket()
-    blobs = bucket.list_blobs() 
-
-    image_urls = []
-    for blob in blobs:
-        image_url = blob.generate_signed_url(expiration=3600)  # 1시간 동안 유효한 다운로드 링크 생성
-        image_urls.append(image_url)
-
-    return JsonResponse({"image_urls": image_urls}) """
-
-
-#  최신 문서 유형별 가장 최신 이미지만 가져오기 (type 기준 필터링)
-"""
-    Firestore에서 최신 문서를 가져와 'type'별로 가장 최신 이미지만 반환하는 API.
-    예: 
-    - 계약서 3장 (3분 전), 등기부등본 1장 (방금) → 등기부등본 1장만 반환
-    - 계약서 3장, 등기부등본 2장 → 각 타입별 가장 최근 이미지만 반환
-    """
 
 @csrf_exempt
 def fetch_latest_documents(request): ### document문서들을 통합해서 저장하는 코드
@@ -175,5 +115,6 @@ def fetch_latest_documents(request): ### document문서들을 통합해서 저�
     except Exception as e:
         print(f"❌ 문서 조회 중 오류 발생: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+
 
     

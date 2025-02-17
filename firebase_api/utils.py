@@ -1,6 +1,11 @@
 # Firebase를 초기화하고, 최신 이미지의 URL을 가져오는 함수 제공
 # urls -> views.py(api 엔드포인트) -> utils.py(기능구현)
 
+from firebase_admin import firestore
+from typing import Dict, Optional
+import json
+from django.http import JsonResponse
+
 import firebase_admin
 from firebase_admin import credentials, storage, firestore 
 import os
@@ -144,3 +149,79 @@ def save_ocr_result_to_analyses(user_id, contract_id, document_type, page_number
     except Exception as e:
         print(f"Firestore 저장 실패: {e}")
 """
+
+
+from firebase_admin import firestore
+from typing import Dict, Optional
+import json
+from django.http import JsonResponse
+
+db = firestore.client()
+
+def get_latest_analysis_results(user_id: str, document_type: str) -> Optional[Dict]:
+    """특정 사용자의 가장 최근 문서 분석 결과 조회"""
+    try:
+        analyses_ref = (
+            db.collection("analyses")
+            .document("users")
+            .collection(user_id)
+            .where("type", "==", document_type)
+            .order_by("createdAt", direction=firestore.Query.DESCENDING)
+            .limit(1)
+        )
+        
+        docs = analyses_ref.get()
+        for doc in docs:
+            return doc.to_dict().get('result')
+        return None
+    except Exception as e:
+        print(f"분석 결과 조회 실패: {e}")
+        return None
+
+def save_combined_results(user_id: str, combined_data: Dict) -> bool:
+    """통합된 OCR 결과를 Firestore에 저장"""
+    try:
+        doc_ref = (
+            db.collection("analyses")
+            .document("users")
+            .collection(user_id)
+            .document("combined_analysis")
+        )
+        
+        doc_ref.set({
+            'result': combined_data,
+            'status': 'completed',
+            'type': 'combined',
+            'userId': user_id,
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        })
+        print(f"✅ 통합 OCR 결과 저장 완료")
+        return True
+    except Exception as e:
+        print(f"❌ 통합 OCR 결과 저장 실패: {e}")
+        return False
+
+def save_analysis_result(user_id: str, analysis_data: Dict) -> bool:
+    """AI 분석 결과를 Firestore에 저장"""
+    try:
+        doc_ref = (
+            db.collection("analyses")
+            .document("users")
+            .collection(user_id)
+            .document("ai_analysis")
+        )
+        
+        doc_ref.set({
+            'result': analysis_data,
+            'status': 'completed',
+            'type': 'ai_analysis',
+            'userId': user_id,
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        })
+        print(f"✅ AI 분석 결과 저장 완료")
+        return True
+    except Exception as e:
+        print(f"❌ AI 분석 결과 저장 실패: {e}")
+        return False
