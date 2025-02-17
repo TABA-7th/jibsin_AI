@@ -1,6 +1,7 @@
 import json
 import os
 import requests
+from typing import List, Dict, Optional
 from ai_processing.registry_ocr import registry_keyword_ocr #  OCR 모듈 직접 가져오기
 from ai_processing.contract_ocr import contract_keyword_ocr 
 from ai_processing.building_ocr import building_keyword_ocr
