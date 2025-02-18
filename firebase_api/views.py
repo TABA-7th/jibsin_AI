@@ -51,70 +51,75 @@ def test_firebase_connection(request):
 
 
 @csrf_exempt
-def fetch_latest_documents(request): ### document문서들을 통합해서 저장하는 코드
+def fetch_latest_documents(request):
     """
-     Firestore에서 최신 문서를 가져와 문서 유형별로 분류 후 반환 (OCR 수행 X)
+    Firestore에서 문서 이미지들을 가져와 문서 유형별로 분류 후 반환
+    경로: /users/{user_id}/contracts/{contract_id}
     """
     try:
-        user_id = request.GET.get("user_id")
-        session_threshold = timedelta(minutes=1800)
+        # POST 요청에서 data를 파싱하거나 GET 요청에서 params를 가져옴
+        if request.method == 'POST':
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            contract_id = data.get('contract_id')
+        else:
+            user_id = request.GET.get('user_id')
+            contract_id = request.GET.get('contract_id')
 
-        docs_ref = db.collection("scanned_documents")
-        query = docs_ref.order_by("uploadDate", direction=firestore.Query.DESCENDING)
+        if not user_id or not contract_id:
+            return JsonResponse({"error": "user_id와 contract_id가 필요합니다"}, status=400)
 
-        if user_id:
-            query = query.where("userId", "==", user_id)
+        # 계약 문서 참조 생성
+        contract_ref = (db.collection("users")
+                       .document(user_id)
+                       .collection("contracts")
+                       .document(contract_id))  
 
-        docs = list(query.stream())
+    
 
-        if not docs:
-            return JsonResponse({"error": "No images found"}, status=404)
+        # 각 문서 타입의 데이터 가져오기
+        doc = contract_ref.get()
+        
+        if not doc.exists:
+            return JsonResponse({"error": "계약 문서를 찾을 수 없습니다"}, status=404)
 
-        #  최신 세션의 기준 시간 찾기
-        latest_upload_time = docs[0].to_dict().get("uploadDate")
-        latest_session_documents = {"contract": [], "registry_document": [], "building_registry": []}
+        contract_data = doc.to_dict()
 
-        # 최신 세션의 문서들을 임시 저장할 딕셔너리
-        temp_documents = {
+        # 문서 타입별 이미지 URL 저장
+        latest_session_documents = {
             "contract": [],
             "registry_document": [],
             "building_registry": []
         }
 
-        for doc in docs:
-            data = doc.to_dict()
-            image_upload_time = data.get("uploadDate")
-            doc_type = data.get("type", "unknown")
-
-            if image_upload_time and abs(image_upload_time - latest_upload_time) <= session_threshold:
-                if doc_type in temp_documents:
-                    temp_documents[doc_type].append({
-                        'imageUrl': data["imageUrl"],
-                        'pageNumber': data.get("pageNumber", 1),  # 페이지 번호가 없으면 1로 기본 설정
-                        'uploadDate': image_upload_time
-                    })
+        print("Contract data:", contract_data)
         
-            else:
-                break  # 최신 세션이 끝났으므로 더 이상 가져오지 않음
-
-        # 각 문서 타입별로 페이지 번호순으로 정렬하여 URL 리스트 생성
-        for doc_type in temp_documents:
-            if temp_documents[doc_type]:
-                # 페이지 번호로 정렬
-                sorted_docs = sorted(temp_documents[doc_type], key=lambda x: x['pageNumber'])
-                # URL만 추출하여 저장
-                latest_session_documents[doc_type] = [doc['imageUrl'] for doc in sorted_docs]
-                print(f"✅ {doc_type} 정렬 완료: {len(latest_session_documents[doc_type])} 페이지")
+        # 각 문서 타입별로 데이터 처리
+        for doc_type in latest_session_documents.keys():
+            if doc_type in contract_data:
+                # 각 문서 타입의 데이터를 페이지 번호 순으로 정렬
+                pages = sorted(contract_data[doc_type], key=lambda x: x.get('pageNumber', 1)) if isinstance(contract_data[doc_type], list) else []
+                
+                for page in pages:
+                    if 'imageUrl' in page:
+                        latest_session_documents[doc_type].append(page['imageUrl'])
+                
+                if latest_session_documents[doc_type]:
+                    print(f"✅ {doc_type} 로드 완료: {len(latest_session_documents[doc_type])} 페이지")
 
         if not any(latest_session_documents.values()):
-            return JsonResponse({"error": "No images found in recent session"}, status=404)
+            return JsonResponse({"error": "문서에서 이미지를 찾을 수 없습니다"}, status=404)
 
-        #  OCR 수행 X, 이미지 URL만 반환
-        return JsonResponse({"classified_documents": latest_session_documents}, status=200)
+        response_data = {
+            "classified_documents": latest_session_documents,
+            "user_id": user_id,
+            "contract_id": contract_id
+        }
+        
+        print("Response data:", response_data)
 
+        return JsonResponse(response_data)
+    
     except Exception as e:
         print(f"❌ 문서 조회 중 오류 발생: {e}")
         return JsonResponse({"error": str(e)}, status=500)
-
-
-    

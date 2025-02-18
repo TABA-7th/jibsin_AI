@@ -83,15 +83,14 @@ def save_json(text: str, output_file: str) -> str:
     except json.JSONDecodeError as e:
         return f"❌ JSON 변환 실패: {e}"
 
-def building_keyword_ocr(image_urls, doc_type):
+def building_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     """Firebase URL에서 건축물대장 OCR 처리"""
     all_results = {}
     
     for image_url in image_urls:
 
-        # URL에서 group_id와 page_number 추출
-        group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_url).group(1)
-        page_number = re.search(r'page(\d+)\.jpg', image_url).group(1)
+        
+        page_number = int(re.search(r'page(\d+)\.jpg', image_url).group(1))
         
         """
         # 목표 구조를 위한 변수 (주석 처리)
@@ -190,27 +189,9 @@ def building_keyword_ocr(image_urls, doc_type):
         try:
             json_data = json.loads(fix_json_format(text))
             
-            # 현재 구조 - scanned_documents에 저장
-            save_ocr_result_to_firestore(
-                group_id=group_id,
-                document_type=doc_type,
-                page_number=int(page_number),
-                json_data=json_data
-            )
-            
-            """
-            # 목표 구조 - analyses 컬렉션에 저장 (주석 처리)
-            save_ocr_result_to_firestore(
-                user_id=user_id,
-                contract_id=contract_id,
-                document_type=doc_type,
-                page_number=int(page_number),
-                json_data=json_data
-            )
-            """
-            
             
             all_results[f"page{page_number}"] = json_data
+            print(f"✅ 페이지 {page_number} OCR 처리 완료")
             
         except json.JSONDecodeError as e:
             print(f"JSON 파싱 오류: {e}")

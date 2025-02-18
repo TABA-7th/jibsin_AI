@@ -12,30 +12,57 @@ from firebase_api.views import fetch_latest_documents
 from firebase_api.utils import (
     get_latest_analysis_results,
     save_combined_results,
-    save_analysis_result
+    save_analysis_result,
+    save_ocr_result_to_firestore,
 )
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@csrf_exempt
+@require_http_methods(["POST"])
 def run_ocr(request):
     """
     OCR 실행 엔드포인트
+    
+    프론트엔드에서 필요한 파라미터:
+    - user_id: 사용자 ID
+    - contract_id: 계약 ID
+    - document_type: 문서 타입 (registry_document, contract, building_registry)
     """
     try:
         # 요청 데이터 파싱
         data = json.loads(request.body)
+        user_id = data.get('user_id')
+        contract_id = data.get('contract_id')
         document_type = data.get('document_type')
         
-        if not document_type:
-            return JsonResponse({"error": "document_type이 필요합니다"}, status=400)
+        # 필수 파라미터 검증
+        if not all([user_id, contract_id, document_type]):
+            missing_params = []
+            if not user_id: missing_params.append("user_id")
+            if not contract_id: missing_params.append("contract_id")
+            if not document_type: missing_params.append("document_type")
+            return JsonResponse({
+                "error": f"필수 파라미터가 누락되었습니다: {', '.join(missing_params)}"
+            }, status=400)
+        
+        # fetch_latest_documents 호출을 위한 request 객체 수정
+        request.GET = request.GET.copy()
+        request.GET['user_id'] = user_id
+        request.GET['contract_id'] = contract_id
 
-        # Firebase에서 최신 문서 URL 가져오기
         response = fetch_latest_documents(request)
-        if not response or not isinstance(response, JsonResponse):
-            return JsonResponse({"error": "문서를 찾을 수 없습니다"}, status=404)
-
-        document_urls = json.loads(response.content)['classified_documents']
+        
+        # 디버깅을 위한 로그 추가
+        print("fetch_latest_documents response:", response.content)
+        try:
+            response_data = json.loads(response.content)
+            if 'classified_documents' not in response_data:
+                return JsonResponse({"error": "문서 URL을 찾을 수 없습니다"}, status=404)
+            document_urls = response_data['classified_documents']
+        except json.JSONDecodeError as e:
+            return JsonResponse({"error": f"응답 파싱 실패: {str(e)}"}, status=500)
         
         # 요청된 문서 타입의 URL 확인
         if document_type not in document_urls or not document_urls[document_type]:
@@ -49,17 +76,23 @@ def run_ocr(request):
         if document_type == "registry_document":
             result = registry_keyword_ocr(
                 document_urls["registry_document"],
-                "registry_document"
+                "registry_document",
+                user_id,
+                contract_id
             )
         elif document_type == "contract":
             result = contract_keyword_ocr(
                 document_urls["contract"],
-                "contract"
+                "contract",
+                user_id,
+                contract_id
             )
         elif document_type == "building_registry":
             result = building_keyword_ocr(
                 document_urls["building_registry"],
-                "building_registry"
+                "building_registry",
+                user_id,
+                contract_id
             )
         else:
             return JsonResponse({"error": "지원하지 않는 문서 타입입니다"}, status=400)
@@ -67,9 +100,26 @@ def run_ocr(request):
         if not result:
             return JsonResponse({"error": "OCR 처리 실패"}, status=500)
 
+        # OCR 결과 저장
+        for page_number, page_result in result.items():
+            page_num = int(page_number.replace('page', ''))
+            save_success = save_ocr_result_to_firestore(
+                user_id=user_id,
+                contract_id=contract_id,
+                document_type=document_type,
+                page_number=page_num,
+                json_data=page_result
+            )
+
+            if not save_success:
+                return JsonResponse({"error": f"OCR 결과 저장 실패 (페이지 {page_num})"}, status=500)
+            
         return JsonResponse({
             "status": "success",
-    
+            "message": f"{document_type} OCR 처리 완료",
+            "user_id": user_id,
+            "contract_id": contract_id,
+            "result": result
         })
 
     except json.JSONDecodeError:

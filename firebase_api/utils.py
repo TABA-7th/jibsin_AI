@@ -56,79 +56,35 @@ import json
 
 
 
-def save_ocr_result_to_firestore(group_id, document_type, page_number, json_data):
+def save_ocr_result_to_firestore(user_id: str, contract_id: str, document_type: str, page_number: int, json_data: Dict) -> bool:
     """
-    현재 구조 - Firestore의 scanned_documents 컬렉션에 OCR 결과 저장
-    :param group_id: 문서 그룹 ID
-    :param document_type: 문서 타입 ('building_registry', 'registry_document', 'contract')
-    :param page_number: 페이지 번호
-    :param json_data: OCR 결과 JSON 데이터
+    OCR 결과를 Firestore에 저장
+    경로: /users/{user_id}/contracts/{contract_id}/analysis/{document_type}_page{page_number}
     """
     try:
-        # scanned_documents 컬렉션에서 해당 페이지 문서 조회
-        query = db.collection("scanned_documents")
-        query = query.where(filter=FieldFilter("groupId", "==", group_id))
-        query = query.where(filter=FieldFilter("type", "==", document_type))
-        query = query.where(filter=FieldFilter("pageNumber", "==", page_number))
-        scanned_docs = query.get()
-        
-        if not scanned_docs:
-            print(f"해당하는 문서를 찾을 수 없습니다: groupId={group_id}, type={document_type}, page={page_number}")
-            return
-
-        # 첫 번째 문서에서 userId 가져오기
-        doc_data = scanned_docs[0].to_dict()
-        user_id = doc_data.get('userId')
-        image_url = doc_data.get('imageUrl')
-        if not user_id:
-            print("userId를 찾을 수 없습니다")
-            return
-
-
-        doc_path = f"analyses/users/{user_id}/{document_type}_{page_number}"
-        print(f"Trying to update document at: {doc_path}")
-
-
-        analyses_ref = (
-            db.collection("analyses")  # collection
-            .document("users")         # document
-            .collection(user_id)       # collection
-            .document(f"{document_type}_{page_number}")  # document
+        # analysis 컬렉션 참조 생성
+        analysis_ref = (
+            db.collection("users")
+            .document(user_id)
+            .collection("contracts")
+            .document(contract_id)
+            .collection("analysis")
+            .document(f"{document_type}_page{page_number}")
         )
 
-        # 문서가 존재하는지 먼저 확인
-        doc = analyses_ref.get()
+        # OCR 결과 저장
+        analysis_ref.set({
+            'pageNumber': page_number,
+            'result': json_data,
+            'type': document_type
+        })
 
-        if doc.exists:
-                # 기존 문서 업데이트
-                analyses_ref.update({
-                    'result': json_data,
-                    'status': 'completed',
-                    'pageNumber': page_number,
-                    'groupId': group_id,
-                    'imageUrl': image_url,
-                    'updatedAt': firestore.SERVER_TIMESTAMP
-                })
-                print(f"✅ Firestore 업데이트 완료")
-        else:
-                # 새 문서 생성
-                analyses_ref.set({
-                    'result': json_data,
-                    'status': 'completed',
-                    'type': document_type,
-                    'pageNumber': page_number,
-                    'groupId': group_id,
-                    'userId': user_id,
-                    'imageUrl': image_url,
-                    'createdAt': firestore.SERVER_TIMESTAMP,
-                    'updatedAt': firestore.SERVER_TIMESTAMP
-                })
-                print(f"✅ Firestore 새 문서 생성 완료")
+        print(f"✅ OCR 결과 저장 완료: {document_type} page {page_number}")
+        return True
 
     except Exception as e:
-        print(f" Firestore 저장 실패: {e}")
-        raise e
-
+        print(f"❌ Firestore 저장 실패: {e}")
+        return False
 """
 # 목표 구조 - 추후 구현을 위해 주석 처리
 def save_ocr_result_to_analyses(user_id, contract_id, document_type, page_number, json_data):
