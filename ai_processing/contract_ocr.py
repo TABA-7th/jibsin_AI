@@ -203,17 +203,15 @@ def ttj(text: str, output_file: str) -> str:
         print("📌 오류 발생 JSON 내용:\n", text)
         return f"❌ JSON 변환 실패: {e}"
 
-def contract_keyword_ocr(image_urls, doc_type):
+def contract_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     """Firebase URL에서 계약서 OCR 처리"""
     all_results = {}
     
-    # URL에서 group_id 추출
-    group_id = re.search(r'scanned_documents%2F(.*?)%2F', image_urls[0]).group(1)
     
     for url in image_urls:
         try:
-            # URL에서 페이지 번호 추출
-            page_number = int(re.search(r'page(\d+)', url).group(1))
+            # URL에서 페이지 번호 추출 부분 수정
+            page_number = int(re.search(r'page(\d+)\.jpg', url).group(1))
             
             # URL에서 이미지 다운로드
             response = requests.get(url)
@@ -346,20 +344,7 @@ def contract_keyword_ocr(image_urls, doc_type):
             
             try:
                 # 결과 저장
-                output_file = f"ocr_result_contract_{page_number}.json"
-                result = ttj(text, output_file)
-                
-                with open(result, 'r', encoding='utf-8') as f:
-                    json_data = json.load(f)
-                
-                # Firestore에 저장
-                save_ocr_result_to_firestore(
-                    group_id=group_id,
-                    document_type=doc_type,
-                    page_number=page_number,
-                    json_data=json_data
-                )
-                
+                json_data = json.loads(fix_json_format(text))
                 all_results[f"page{page_number}"] = json_data
                 print(f"✅ 페이지 {page_number} 처리 완료")
                 
@@ -372,14 +357,6 @@ def contract_keyword_ocr(image_urls, doc_type):
             continue
 
     if all_results:
-        # 전체 결과 파일 저장
-        try:
-            result_data = all_results  # 중첩 없이 결과 저장
-            with open("ocr_result_contract.json", "w", encoding="utf-8") as f:
-                json.dump(result_data, f, ensure_ascii=False, indent=4)
-            print("✅ 전체 계약서 OCR 결과 저장 완료")
-            return {"contract": all_results}  # 최종 반환시에만 contract로 감싸기
-        except Exception as e:
-            print(f"❌ 결과 파일 저장 실패: {e}")
+        return all_results  # 그냥 페이지별 결과만 반환
     
     return None
