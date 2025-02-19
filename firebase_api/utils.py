@@ -200,3 +200,26 @@ def save_analysis_result(user_id: str, analysis_data: Dict) -> bool:
     except Exception as e:
         print(f"❌ AI 분석 결과 저장 실패: {e}")
         return False
+
+def update_analysis_status(user_id: str, contract_id: str, status: str):
+    """Firestore에 AI 분석 상태를 업데이트"""
+    try:
+        doc_ref = (
+            db.collection("users")
+            .document(user_id)
+            .collection("contracts")
+            .document(contract_id)
+            .collection("analysis")
+            .document("combined_analysis")
+        )
+
+        doc_ref.update({
+            "status": status,
+            "updatedAt": firestore.SERVER_TIMESTAMP
+        })
+
+        print(f"✅ 분석 상태 업데이트: {status}")
+        return True
+    except Exception as e:
+        print(f"❌ 분석 상태 업데이트 실패: {e}")
+        return False
