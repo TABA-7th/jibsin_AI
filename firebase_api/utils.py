@@ -5,11 +5,12 @@ from firebase_admin import firestore
 from typing import Dict, Optional
 import json
 from django.http import JsonResponse
-
 import firebase_admin
 from firebase_admin import credentials, storage, firestore 
 import os
 from google.cloud.firestore import FieldFilter
+from datetime import datetime, timezone
+
 
 #  Firebase 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -107,53 +108,58 @@ from firebase_admin import firestore
 from typing import Dict, Optional
 import json
 from django.http import JsonResponse
-
 db = firestore.client()
 
-def get_latest_analysis_results(user_id: str, document_type: str) -> Optional[Dict]:
+def get_latest_analysis_results(user_id: str, contract_id: str, document_type: str) -> Optional[Dict]:
     """특정 사용자의 가장 최근 문서 분석 결과 조회"""
     try:
         analyses_ref = (
-            db.collection("analyses")
-            .document("users")
-            .collection(user_id)
-            .where("type", "==", document_type)
-            .order_by("createdAt", direction=firestore.Query.DESCENDING)
-            .limit(1)
+            db.collection("users")
+            .document(user_id)
+            .collection("contracts")
+            .document(contract_id)
+            .collection("analysis")
+            .document(f"{document_type}_page1")  # 첫 페이지만 가져오기
         )
         
-        docs = analyses_ref.get()
-        for doc in docs:
-            return doc.to_dict().get('result')
+        doc = analyses_ref.get()
+        if doc.exists:
+            return doc.to_dict()
         return None
     except Exception as e:
         print(f"분석 결과 조회 실패: {e}")
         return None
 
-def save_combined_results(user_id: str, combined_data: Dict) -> bool:
+def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -> bool:
     """통합된 OCR 결과를 Firestore에 저장"""
     try:
         doc_ref = (
-            db.collection("analyses")
-            .document("users")
-            .collection(user_id)
+            db.collection("users")
+            .document(user_id)
+            .collection("contracts")
+            .document(contract_id)
+            .collection("analysis")
             .document("combined_analysis")
         )
         
+        # 현재 시간 설정
+        current_time = datetime.now(timezone.utc)
+        
         doc_ref.set({
-            'result': combined_data,
+            **combined_data,  # OCR 결과 데이터
             'status': 'completed',
             'type': 'combined',
             'userId': user_id,
-            'createdAt': firestore.SERVER_TIMESTAMP,
-            'updatedAt': firestore.SERVER_TIMESTAMP
+            'createdAt': current_time,
+            'updatedAt': current_time
         })
-        print(f"✅ 통합 OCR 결과 저장 완료")
+        print(f"✅ 통합 OCR 결과 저장 완료: /users/{user_id}/contracts/{contract_id}/analysis/combined_analysis")
         return True
     except Exception as e:
         print(f"❌ 통합 OCR 결과 저장 실패: {e}")
         return False
-
+    
+    
 def save_analysis_result(user_id: str, analysis_data: Dict) -> bool:
     """AI 분석 결과를 Firestore에 저장"""
     try:
