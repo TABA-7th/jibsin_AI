@@ -113,18 +113,42 @@ db = firestore.client()
 def get_latest_analysis_results(user_id: str, contract_id: str, document_type: str) -> Optional[Dict]:
     """특정 사용자의 가장 최근 문서 분석 결과 조회"""
     try:
-        analyses_ref = (
-            db.collection("users")
-            .document(user_id)
-            .collection("contracts")
-            .document(contract_id)
-            .collection("analysis")
-            .document(f"{document_type}_page1")  # 첫 페이지만 가져오기
-        )
-        
-        doc = analyses_ref.get()
-        if doc.exists:
-            return doc.to_dict()
+        page_results = {}
+        # 여러 페이지의 결과를 가져오기
+        for page_num in range(1, 4):  # 1부터 3페이지까지 확인
+            doc_ref = (
+                db.collection("users")
+                .document(user_id)
+                .collection("contracts")
+                .document(contract_id)
+                .collection("analysis")
+                .document(f"{document_type}_page{page_num}")
+            )
+            
+            doc = doc_ref.get()
+            if doc.exists:
+                data = doc.to_dict()
+                ocr_result = data.get('ocr_result', {})
+                
+                # 필요한 필드만 추출하여 원하는 구조로 변환
+                page_data = {}
+                for key, value in ocr_result.items():
+                    # 필드명에서 괄호 등 불필요한 부분 제거
+                    cleaned_key = key.replace('(', '').replace(')', '')
+                    if isinstance(value, dict):
+                        page_data[cleaned_key] = {
+                            "text": value.get('text', 'NA'),
+                            "bounding_box": value.get('bounding_box', {
+                                "x1": 0, "y1": 0, "x2": 0, "y2": 0
+                            })
+                        }
+                
+                if page_data:  # 결과가 있는 경우만 저장
+                    page_results[f"page{page_num}"] = page_data
+
+        # document_type을 키로 사용하되 한 번만 감싸기
+        if page_results:
+            return {document_type: page_results}
         return None
     except Exception as e:
         print(f"분석 결과 조회 실패: {e}")
@@ -142,16 +166,9 @@ def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -
             .document("combined_analysis")
         )
         
-        # 현재 시간 설정
-        current_time = datetime.now(timezone.utc)
         
         doc_ref.set({
             **combined_data,  # OCR 결과 데이터
-            'status': 'completed',
-            'type': 'combined',
-            'userId': user_id,
-            'createdAt': current_time,
-            'updatedAt': current_time
         })
         print(f"✅ 통합 OCR 결과 저장 완료: /users/{user_id}/contracts/{contract_id}/analysis/combined_analysis")
         return True

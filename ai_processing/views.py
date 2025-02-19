@@ -161,7 +161,6 @@ def start_analysis(request):
 def fake_start_analysis(request):
     """AI 분석 엔드포인트"""
     try:
-        # 요청 데이터 파싱
         data = json.loads(request.body)
         user_id = data.get('user_id')
         contract_id = data.get('contract_id')
@@ -171,32 +170,19 @@ def fake_start_analysis(request):
                 "error": "필수 파라미터가 누락되었습니다"
             }, status=400)
 
-        # 각 문서 타입별 OCR 결과 가져오기
-        document_types = ["contract", "registry_document", "building_registry"]
-        ocr_results = {}
-
-        for doc_type in document_types:
-            # contract_id 추가
-            result = get_latest_analysis_results(user_id, contract_id, doc_type)
-            if result:
-                ocr_results[doc_type] = result
-
-        if not ocr_results:
+        # OCR 결과 가져오기
+        results = get_latest_analysis_results(user_id, contract_id, "building_registry")
+        
+        if not results:
             return JsonResponse({
                 "error": "OCR 결과를 찾을 수 없습니다"
             }, status=404)
 
-        # 임시로 combined_data 생성
-        combined_data = {
-            "ocr_results": ocr_results,
-            "contract_id": contract_id,
-        }
-
-        # 통합 결과 저장
+        # 저장할 데이터 구조화 - combined_data가 아닌 results를 직접 저장
         save_success = save_combined_results(
             user_id=user_id,
-            contract_id=contract_id,  # contract_id 추가
-            combined_data=combined_data
+            contract_id=contract_id,
+            combined_data=results  # 이미 적절한 구조를 가진 results를 직접 저장
         )
 
         if not save_success:
@@ -207,7 +193,7 @@ def fake_start_analysis(request):
         return JsonResponse({
             "status": "success",
             "message": "OCR 결과 통합 완료",
-            "data": combined_data
+            "data": results
         })
 
     except json.JSONDecodeError:
