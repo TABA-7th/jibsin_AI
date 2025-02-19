@@ -4,7 +4,7 @@ from django.views.decorators.http import require_http_methods
 import json
 from firebase_admin import firestore
 from typing import Dict, Optional
-
+from datetime import datetime, timezone
 from .registry_ocr import registry_keyword_ocr
 from .contract_ocr import contract_keyword_ocr
 from .building_ocr import building_keyword_ocr
@@ -16,9 +16,6 @@ from firebase_api.utils import (
     save_ocr_result_to_firestore,
 )
 
-
-@csrf_exempt
-@require_http_methods(["POST"])
 @csrf_exempt
 @require_http_methods(["POST"])
 def run_ocr(request):
@@ -101,18 +98,41 @@ def run_ocr(request):
             return JsonResponse({"error": "OCR 처리 실패"}, status=500)
 
         # OCR 결과 저장
-        for page_number, page_result in result.items():
-            page_num = int(page_number.replace('page', ''))
-            save_success = save_ocr_result_to_firestore(
-                user_id=user_id,
-                contract_id=contract_id,
-                document_type=document_type,
-                page_number=page_num,
-                json_data=page_result
-            )
+        if result:
+            for page_number, page_result in result.items():
+                page_num = int(page_number.replace('page', ''))
+                
+                # 해당 페이지의 URL 찾기
+                page_url = next(
+                    (url for url in document_urls[document_type] 
+                     if f"page{page_num}" in url),
+                    None
+                )
+                
+                current_time = datetime.now(timezone.utc)
 
-            if not save_success:
-                return JsonResponse({"error": f"OCR 결과 저장 실패 (페이지 {page_num})"}, status=500)
+                # 저장할 데이터 구조화
+                save_data = {
+                "pageNumber": page_num,
+                "document_type": document_type,
+                "userId": user_id,
+                "status": "completed",
+                "createdAt": current_time,  # UTC 시간 사용
+                "updatedAt": current_time,
+                "imageUrl": page_url,
+                "ocr_result": page_result
+                }
+                
+                save_success = save_ocr_result_to_firestore(
+                    user_id=user_id,
+                    contract_id=contract_id,
+                    document_type=document_type,
+                    page_number=page_num,
+                    json_data=save_data
+                )
+
+                if not save_success:
+                    return JsonResponse({"error": f"OCR 결과 저장 실패 (페이지 {page_num})"}, status=500)
             
         return JsonResponse({
             "status": "success",
@@ -126,7 +146,7 @@ def run_ocr(request):
         return JsonResponse({"error": "잘못된 JSON 형식입니다"}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
+    
 @csrf_exempt
 @require_http_methods(["POST"])
 def start_analysis(request):

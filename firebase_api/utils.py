@@ -73,11 +73,7 @@ def save_ocr_result_to_firestore(user_id: str, contract_id: str, document_type: 
         )
 
         # OCR 결과 저장
-        analysis_ref.set({
-            'pageNumber': page_number,
-            'result': json_data,
-            'type': document_type
-        })
+        analysis_ref.set(json_data)
 
         print(f"✅ OCR 결과 저장 완료: {document_type} page {page_number}")
         return True

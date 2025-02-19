@@ -92,12 +92,7 @@ def building_keyword_ocr(image_urls, doc_type, user_id, contract_id):
         
         page_number = int(re.search(r'page(\d+)\.jpg', image_url).group(1))
         
-        """
-        # 목표 구조를 위한 변수 (주석 처리)
-        user_id = "test_user"  # 나중에 실제 사용자 ID로 변경
-        contract_id = "2nd_contract"  # 나중에 실제 계약 ID로 변경
-        """
-
+    
         # URL에서 이미지 다운로드
         response = requests.get(image_url)
         if response.status_code != 200:
@@ -114,7 +109,7 @@ def building_keyword_ocr(image_urls, doc_type, user_id, contract_id):
             print(f"OCR 처리 중 오류 발생: {e}")
             continue
 
-        # 2차 GPT 분석
+        # 2차 ocr GPT 분석
         base64_image = base64.b64encode(image_data).decode("utf-8")
         df_json = json.dumps(df.to_dict(orient="records"), ensure_ascii=False)
         
