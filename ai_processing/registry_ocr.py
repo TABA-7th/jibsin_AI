@@ -219,8 +219,6 @@ def format_registry_json(text: str, output_file: str) -> str:
 def registry_keyword_ocr(image_urls, doc_type):
     """메인 OCR 처리 함수"""
 
-    contract_id = re.search(r'contracts%2F(.*?)%2F', image_urls[0]).group(1)
-    
     page_numbers = [int(re.search(r'page(\d+)', url).group(1)) for url in image_urls]
 
     # 이미지 병합
@@ -346,21 +344,5 @@ def registry_keyword_ocr(image_urls, doc_type):
             }
         }
 
-     # Firestore에 저장
-    for page_key, page_data in page_structured_data.items():
-        page_number = int(page_key.replace('page', ''))
-        
-        # URL에서 user_id와 contract_id 추출
-        contract_id = re.search(r'scanned_documents%2F(.*?)%2F', image_urls[0]).group(1)
-        # 임시로 test_user 사용 (실제로는 파라미터로 받아야 함)
-        user_id = "test_user"
-        
-        save_ocr_result_to_firestore(
-            user_id=user_id,
-            contract_id=contract_id,
-            document_type=doc_type,
-            page_number=page_number,
-            json_data=page_data
-        )
 
     return page_structured_data
