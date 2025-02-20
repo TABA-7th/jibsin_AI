@@ -194,7 +194,7 @@ def start_analysis(request):
 
         # 분석 결과 저장
         save_combined_results(user_id, contract_id, validated_data)
-        save_analysis_result(user_id, validated_data)
+        save_analysis_result(user_id, contract_id, validated_data)
         
         # 상태 업데이트: 분석 완료
         update_analysis_status(user_id, contract_id, "completed")
