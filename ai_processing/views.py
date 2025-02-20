@@ -194,14 +194,13 @@ def start_analysis(request):
         print("건축물대장 페이지 수:", len(merged_data["building_registry"]) if merged_data["building_registry"] else 0)
         print("등기부등본 페이지 수:", len(merged_data["registry_document"]) if merged_data["registry_document"] else 0)
         
-        save_combined_results(user_id, contract_id, merged_data)
-
         try:
+            # 문서 검증 수행
             analysis_result = validate_documents(merged_data)
-            # AI 분석 결과 저장
-            save_analysis_result(user_id, contract_id, analysis_result)
             
-            # 상태 업데이트: 분석 완료
+            # AI_analysis 컬렉션에 결과 저장
+            save_analysis_result(user_id, contract_id, analysis_result)
+            # contract 문서 상태 업데이트
             update_analysis_status(user_id, contract_id, "completed")
 
             return JsonResponse({
@@ -219,7 +218,6 @@ def start_analysis(request):
             }, status=500)
 
     except Exception as e:
-        # 오류 발생 시 상태 업데이트
         if user_id and contract_id:
             update_analysis_status(user_id, contract_id, "failed")
         

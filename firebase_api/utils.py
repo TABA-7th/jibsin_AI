@@ -179,7 +179,7 @@ def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -
     
     
 def save_analysis_result(user_id: str, contract_id: str, analysis_data: Dict) -> bool:
-    """AI 분석 결과를 Firestore에 저장"""
+    """AI 분석 결과를 AI_analysis 컬렉션에 저장"""
     try:
         # AI_analysis 컬렉션에 저장하되, 타임스탬프를 이용한 문서 ID 생성
         doc_id = f"analysis_{int(datetime.now().timestamp())}"
@@ -207,54 +207,24 @@ def save_analysis_result(user_id: str, contract_id: str, analysis_data: Dict) ->
     except Exception as e:
         print(f"❌ AI 분석 결과 저장 실패: {e}")
         return False
-
+    
 def update_analysis_status(user_id: str, contract_id: str, status: str):
-    """Firestore에 AI 분석 상태를 업데이트"""
+    """contract 문서의 analysisStatus 필드만 업데이트"""
     try:
-        # 가장 최근의 분석 결과를 찾아 상태 업데이트
-        analysis_ref = (
+        contract_ref = (
             db.collection("users")
             .document(user_id)
             .collection("contracts")
             .document(contract_id)
-            .collection("AI_analysis")
-            .order_by("createdAt", direction=firestore.Query.DESCENDING)
-            .limit(1)
         )
         
-        docs = analysis_ref.get()
-        
-        for doc in docs:
-            doc.reference.update({
-                "status": status,
-                "updatedAt": firestore.SERVER_TIMESTAMP
-            })
-            print(f"✅ 분석 상태 업데이트: {status}")
-            return True
+        contract_ref.update({
+            "analysisResult": status,
+            "updatedAt": firestore.SERVER_TIMESTAMP
+        })
+        print(f"✅ 분석 상태 업데이트: {status}")
+        return True
 
-        # 문서가 없는 경우 새로 생성
-        if status == "processing":
-            doc_id = f"analysis_{int(datetime.now().timestamp())}"
-            new_doc_ref = (
-                db.collection("users")
-                .document(user_id)
-                .collection("contracts")
-                .document(contract_id)
-                .collection("AI_analysis")
-                .document(doc_id)
-            )
-            
-            new_doc_ref.set({
-                "status": status,
-                "userId": user_id,
-                "contractId": contract_id,
-                "createdAt": firestore.SERVER_TIMESTAMP,
-                "updatedAt": firestore.SERVER_TIMESTAMP
-            })
-            print(f"✅ 새 분석 상태 문서 생성: {status}")
-            return True
-
-        return False
     except Exception as e:
         print(f"❌ 분석 상태 업데이트 실패: {e}")
         return False
