@@ -128,8 +128,8 @@ def base_xy(i):
 
 def cre_ocr(image, secret_key, api_url):
     """OCR 추출 함수"""
-    target_size = (1240, 1753)
-    image_1 = cv2.resize(image, target_size, interpolation=cv2.INTER_AREA)
+    # target_size = (1240, 1753) #1229
+    # image_1 = cv2.resize(image, target_size, interpolation=cv2.INTER_AREA)
     
     request_json = {
         'images': [{'format': 'jpg', 'name': 'demo'}],
@@ -139,7 +139,7 @@ def cre_ocr(image, secret_key, api_url):
     }
     
     # 이미지 처리
-    _, img_encoded = cv2.imencode('.jpg', image_1)
+    _, img_encoded = cv2.imencode('.jpg', image)
     files = [('file', ('image.jpg', img_encoded.tobytes(), 'image/jpeg'))]
     
     payload = {'message': json.dumps(request_json).encode('UTF-8')}
@@ -237,7 +237,6 @@ def contract_keyword_ocr(image_urls, doc_type, user_id, contract_id):
             df_json = df.to_json(orient="records", force_ascii=False)
             
         
-
             # target_texts 설정 (페이지별)
             if page_number == 1:
                 target_texts = {
