@@ -185,25 +185,38 @@ def start_analysis(request):
         # 데이터 통합
         merged_data = {
             "contract": contract_results.get("contract", {}),
-            "building_registry": {"1": building_results.get("building_registry", {}).get("page1", {})}, # 지금은 1페이지만 가져오도록 되어있음 나중에 수정생각?
+            "building_registry": building_results.get("building_registry", {}),  # 전체 페이지 가져오기
             "registry_document": registry_results.get("registry_document", {})
         }
 
-        # 문서 검증 실행
-        validated_data = validate_documents(merged_data)
-
-        # 분석 결과 저장
-        save_combined_results(user_id, contract_id, validated_data)
-        save_analysis_result(user_id, contract_id, validated_data)
+        # 데이터 검증을 위한 디버깅 출력
+        print("계약서 페이지 수:", len(merged_data["contract"]) if merged_data["contract"] else 0)
+        print("건축물대장 페이지 수:", len(merged_data["building_registry"]) if merged_data["building_registry"] else 0)
+        print("등기부등본 페이지 수:", len(merged_data["registry_document"]) if merged_data["registry_document"] else 0)
         
-        # 상태 업데이트: 분석 완료
-        update_analysis_status(user_id, contract_id, "completed")
+        save_combined_results(user_id, contract_id, merged_data)
 
-        return JsonResponse({
-            'success': True,
-            'message': 'AI 분석이 완료되었습니다.',
-            'data': validated_data
-        })
+        try:
+            analysis_result = validate_documents(merged_data)
+            # AI 분석 결과 저장
+            save_analysis_result(user_id, contract_id, analysis_result)
+            
+            # 상태 업데이트: 분석 완료
+            update_analysis_status(user_id, contract_id, "completed")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'AI 분석이 완료되었습니다.',
+                'data': analysis_result
+            })
+
+        except Exception as e:
+            print(f"AI 분석 중 오류 발생: {str(e)}")
+            update_analysis_status(user_id, contract_id, "failed")
+            return JsonResponse({
+                'success': False,
+                'message': f'AI 분석 중 오류가 발생했습니다: {str(e)}'
+            }, status=500)
 
     except Exception as e:
         # 오류 발생 시 상태 업데이트
@@ -212,9 +225,9 @@ def start_analysis(request):
         
         return JsonResponse({
             'success': False,
-            'message': f'AI 분석 중 오류가 발생했습니다: {str(e)}'
+            'message': f'OCR 결과 처리 중 오류가 발생했습니다: {str(e)}'
         }, status=500)
-
+    
 # @csrf_exempt
 # @require_http_methods(["POST"])
 # def fake_start_analysis(request):

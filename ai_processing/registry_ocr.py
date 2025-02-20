@@ -191,15 +191,15 @@ def format_registry_json(text: str, output_file: str) -> str:
         y1_value = data.get("(소유권에 관한 사항)", {}).get("bounding_box", {}).get("y2", 0)
         y2_value = data.get("(소유권 이외의 권리에 관한 사항)", {}).get("bounding_box", {}).get("y1", 0)
 
-        data["갑구"] = {
-            "text": "(갑구)",
-            "bounding_box": {
-                "x1": 0,
-                "y1": y1_value,
-                "x2": 1200,
-                "y2": y2_value
-            }
-        }
+        # data["갑구"] = {
+        #     "text": "(갑구)",
+        #     "bounding_box": {
+        #         "x1": 0,
+        #         "y1": y1_value,
+        #         "x2": 1200,
+        #         "y2": y2_value
+        #     }
+        # }
 
         # "(소유권에 관한 사항)"과 "(소유권 이외의 권리에 관한 사항)"을 삭제
         data.pop("(소유권에 관한 사항)", None)
@@ -216,7 +216,7 @@ def format_registry_json(text: str, output_file: str) -> str:
         print("📌 오류 발생 JSON 내용:\n", text)
         return f"❌ JSON 변환 실패: {e}"
 
-def registry_keyword_ocr(image_urls, doc_type):
+def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     """메인 OCR 처리 함수"""
 
     page_numbers = [int(re.search(r'page(\d+)', url).group(1)) for url in image_urls]
@@ -247,8 +247,14 @@ def registry_keyword_ocr(image_urls, doc_type):
     target_texts = {
             "종류": "등본 종류 (집합건물, 건물, 토지 중 하나)",
             "(건물주소)": "[등본종류] 도로명 주소 (예: [집합건물] 정왕대로 53번길 29)",
+            "열람일시": "yyyy년 mm월 dd일 hh시mm분ss초",
             "(갑구)":"텍스트",
             "(소유권에 관한 사항)": "(소유권에 관한 사항)",
+            "소유자":"이름",
+            "신탁":"신탁 (예: 신탁, 이외의 다른 단어가 있으면 안됨)",
+            "압류":"압류 (예: 압류, 이외의 다른 단어가 있으면 안됨)",
+            "가처분":"가처분 (예: 가처분, 이외의 다른 단어가 있으면 안됨)",
+            "가압류":"가압류 (예: 가압류, 이외의 다른 단어가 있으면 안됨)",
             "(소유권 이외의 권리에 대한 사항)":"(소유권 이외의 권리에 대한 사항)",
             "(채권최고액)": "최고채권액 금 ###원(예: 채권최고액 금1,000,000,000원)"
         }
