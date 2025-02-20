@@ -168,8 +168,12 @@ def start_analysis(request):
 
         # OCR 결과 가져오기
         contract_results = get_latest_analysis_results(user_id, contract_id, "contract")
+        print(f"계약서 결과: {contract_results}")
         building_results = get_latest_analysis_results(user_id, contract_id, "building_registry")
+        print(f"건축물대장 결과: {building_results}")
         registry_results = get_latest_analysis_results(user_id, contract_id, "registry_document")
+        print(f"등기부등본 결과: {registry_results}")
+
 
         if not all([contract_results, building_results, registry_results]):
             update_analysis_status(user_id, contract_id, "failed")
@@ -211,51 +215,51 @@ def start_analysis(request):
             'message': f'AI 분석 중 오류가 발생했습니다: {str(e)}'
         }, status=500)
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def fake_start_analysis(request):
-    """AI 분석 엔드포인트"""
-    try:
-        data = json.loads(request.body)
-        user_id = data.get('user_id')
-        contract_id = data.get('contract_id')
+# @csrf_exempt
+# @require_http_methods(["POST"])
+# def fake_start_analysis(request):
+#     """AI 분석 엔드포인트"""
+#     try:
+#         data = json.loads(request.body)
+#         user_id = data.get('user_id')
+#         contract_id = data.get('contract_id')
 
-        if not all([user_id, contract_id]):
-            return JsonResponse({
-                "error": "필수 파라미터가 누락되었습니다"
-            }, status=400)
+#         if not all([user_id, contract_id]):
+#             return JsonResponse({
+#                 "error": "필수 파라미터가 누락되었습니다"
+#             }, status=400)
 
-        # OCR 결과 가져오기
-        results = get_latest_analysis_results(user_id, contract_id, "building_registry")
+#         # OCR 결과 가져오기
+#         results = get_latest_analysis_results(user_id, contract_id, "building_registry")
         
-        if not results:
-            return JsonResponse({
-                "error": "OCR 결과를 찾을 수 없습니다"
-            }, status=404)
+#         if not results:
+#             return JsonResponse({
+#                 "error": "OCR 결과를 찾을 수 없습니다"
+#             }, status=404)
 
-        # 저장할 데이터 구조화 - combined_data가 아닌 results를 직접 저장
-        save_success = save_combined_results(
-            user_id=user_id,
-            contract_id=contract_id,
-            combined_data=results  # 이미 적절한 구조를 가진 results를 직접 저장
-        )
+#         # 저장할 데이터 구조화 - combined_data가 아닌 results를 직접 저장
+#         save_success = save_combined_results(
+#             user_id=user_id,
+#             contract_id=contract_id,
+#             combined_data=results  # 이미 적절한 구조를 가진 results를 직접 저장
+#         )
 
-        if not save_success:
-            return JsonResponse({
-                "error": "분석 결과 저장 실패"
-            }, status=500)
+#         if not save_success:
+#             return JsonResponse({
+#                 "error": "분석 결과 저장 실패"
+#             }, status=500)
 
-        return JsonResponse({
-            "status": "success",
-            "message": "OCR 결과 통합 완료",
-            "data": results
-        })
+#         return JsonResponse({
+#             "status": "success",
+#             "message": "OCR 결과 통합 완료",
+#             "data": results
+#         })
 
-    except json.JSONDecodeError:
-        return JsonResponse({
-            "error": "잘못된 JSON 형식입니다"
-        }, status=400)
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e)
-        }, status=500)
+#     except json.JSONDecodeError:
+#         return JsonResponse({
+#             "error": "잘못된 JSON 형식입니다"
+#         }, status=400)
+#     except Exception as e:
+#         return JsonResponse({
+#             "error": str(e)
+#         }, status=500)
