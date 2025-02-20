@@ -14,7 +14,9 @@ from firebase_api.utils import (
     save_combined_results,
     save_analysis_result,
     save_ocr_result_to_firestore,
+    update_analysis_status
 )
+from .validation import validate_documents
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -150,11 +152,64 @@ def run_ocr(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def start_analysis(request):
-    """
-    AI 분석 엔드포인트
-    """
-    return JsonResponse({"message": "분석 기능은 아직 구현되지 않았습니다."})
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('userId')
+        contract_id = data.get('contractId')
+        
+        if not user_id or not contract_id:
+            return JsonResponse({
+                'success': False,
+                'message': '사용자 ID와 계약 ID가 필요합니다.'
+            }, status=400)
 
+        # 상태 업데이트: 분석 시작
+        update_analysis_status(user_id, contract_id, "processing")
+
+        # OCR 결과 가져오기
+        contract_results = get_latest_analysis_results(user_id, contract_id, "contract")
+        building_results = get_latest_analysis_results(user_id, contract_id, "building_registry")
+        registry_results = get_latest_analysis_results(user_id, contract_id, "registry_document")
+
+        if not all([contract_results, building_results, registry_results]):
+            update_analysis_status(user_id, contract_id, "failed")
+            return JsonResponse({
+                'success': False,
+                'message': 'OCR 결과를 찾을 수 없습니다.'
+            }, status=404)
+
+        # 데이터 통합
+        merged_data = {
+            "contract": contract_results.get("contract", {}),
+            "building_registry": {"1": building_results.get("building_registry", {}).get("page1", {})},
+            "registry_document": registry_results.get("registry_document", {})
+        }
+
+        # 문서 검증 실행
+        validated_data = validate_documents(merged_data)
+
+        # 분석 결과 저장
+        save_combined_results(user_id, contract_id, validated_data)
+        save_analysis_result(user_id, validated_data)
+        
+        # 상태 업데이트: 분석 완료
+        update_analysis_status(user_id, contract_id, "completed")
+
+        return JsonResponse({
+            'success': True,
+            'message': 'AI 분석이 완료되었습니다.',
+            'data': validated_data
+        })
+
+    except Exception as e:
+        # 오류 발생 시 상태 업데이트
+        if user_id and contract_id:
+            update_analysis_status(user_id, contract_id, "failed")
+        
+        return JsonResponse({
+            'success': False,
+            'message': f'AI 분석 중 오류가 발생했습니다: {str(e)}'
+        }, status=500)
 
 @csrf_exempt
 @require_http_methods(["POST"])
