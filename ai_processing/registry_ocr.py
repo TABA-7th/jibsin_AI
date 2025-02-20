@@ -191,15 +191,15 @@ def format_registry_json(text: str, output_file: str) -> str:
         y1_value = data.get("(소유권에 관한 사항)", {}).get("bounding_box", {}).get("y2", 0)
         y2_value = data.get("(소유권 이외의 권리에 관한 사항)", {}).get("bounding_box", {}).get("y1", 0)
 
-        # data["갑구"] = {
-        #     "text": "(갑구)",
-        #     "bounding_box": {
-        #         "x1": 0,
-        #         "y1": y1_value,
-        #         "x2": 1200,
-        #         "y2": y2_value
-        #     }
-        # }
+        data["갑구"] = {
+            "text": "(갑구)",
+            "bounding_box": {
+                "x1": 0,
+                "y1": y1_value,
+                "x2": 1200,
+                "y2": y2_value
+            }
+        }
 
         # "(소유권에 관한 사항)"과 "(소유권 이외의 권리에 관한 사항)"을 삭제
         data.pop("(소유권에 관한 사항)", None)

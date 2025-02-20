@@ -208,15 +208,15 @@ def contract_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     all_results = {}
     
     
-    for url in image_urls:
+    for image_url in image_urls:
         try:
             # URL에서 페이지 번호 추출 부분 수정
-            page_number = int(re.search(r'page(\d+)\.jpg', url).group(1))
+            page_number = int(re.search(r'page(\d+)\.jpg', image_url).group(1))
             
             # URL에서 이미지 다운로드
-            response = requests.get(url)
+            response = requests.get(image_url)
             if response.status_code != 200:
-                print(f"❌ 이미지 다운로드 실패: {url}")
+                print(f"❌ 이미지 다운로드 실패: {image_url}")
                 continue
             
             # 이미지 데이터 변환
