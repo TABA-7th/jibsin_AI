@@ -57,31 +57,32 @@ import json
 
 
 
-def save_ocr_result_to_firestore(user_id: str, contract_id: str, document_type: str, page_number: int, json_data: Dict) -> bool:
+def save_ocr_result_to_firestore(user_id: str, contract_id: str, 
+                               document_type: str, page_number: int, 
+                               json_data: Dict) -> bool:
     """
     OCR 결과를 Firestore에 저장
-    경로: /users/{user_id}/contracts/{contract_id}/analysis/{document_type}_page{page_number}
     """
     try:
-        # analysis 컬렉션 참조 생성
-        analysis_ref = (
+        # OCR 결과를 저장할 문서 참조 생성
+        doc_ref = (
             db.collection("users")
             .document(user_id)
             .collection("contracts")
             .document(contract_id)
-            .collection("analysis")
+            .collection("ocr_results")
             .document(f"{document_type}_page{page_number}")
         )
-
-        # OCR 결과 저장
-        analysis_ref.set(json_data)
-
-        print(f"✅ OCR 결과 저장 완료: {document_type} page {page_number}")
+        
+        # 데이터 저장
+        doc_ref.set(json_data)
+        print(f"✅ OCR 결과 저장 완료: {document_type} page{page_number}")
         return True
 
     except Exception as e:
-        print(f"❌ Firestore 저장 실패: {e}")
+        print(f"❌ OCR 결과 저장 실패: {e}")
         return False
+    
 """
 # 목표 구조 - 추후 구현을 위해 주석 처리
 def save_ocr_result_to_analyses(user_id, contract_id, document_type, page_number, json_data):
@@ -110,48 +111,36 @@ import json
 from django.http import JsonResponse
 db = firestore.client()
 
-def get_latest_analysis_results(user_id: str, contract_id: str, document_type: str) -> Optional[Dict]:
-    """특정 사용자의 가장 최근 문서 분석 결과 조회"""
-    try:
-        page_results = {}
-        # 여러 페이지의 결과를 가져오기
-        for page_num in range(1, 4):  # 1부터 3페이지까지 확인
-            doc_ref = (
-                db.collection("users")
-                .document(user_id)
-                .collection("contracts")
-                .document(contract_id)
-                .collection("analysis")
-                .document(f"{document_type}_page{page_num}")
-            )
-            
-            doc = doc_ref.get()
-            if doc.exists:
-                data = doc.to_dict()
-                ocr_result = data.get('ocr_result', {})
-                
-                # 필요한 필드만 추출하여 원하는 구조로 변환
-                page_data = {}
-                for key, value in ocr_result.items():
-                    # 필드명에서 괄호 등 불필요한 부분 제거
-                    cleaned_key = key.replace('(', '').replace(')', '')
-                    if isinstance(value, dict):
-                        page_data[cleaned_key] = {
-                            "text": value.get('text', 'NA'),
-                            "bounding_box": value.get('bounding_box', {
-                                "x1": 0, "y1": 0, "x2": 0, "y2": 0
-                            })
-                        }
-                
-                if page_data:  # 결과가 있는 경우만 저장
-                    page_results[f"page{page_num}"] = page_data
 
-        # document_type을 키로 사용하되 한 번만 감싸기
-        if page_results:
-            return {document_type: page_results}
-        return None
+def get_latest_analysis_results(user_id: str, contract_id: str, 
+                              document_type: str) -> Optional[Dict]:
+    """
+    Firestore에서 최신 OCR 결과 가져오기
+    """
+    try:
+        # OCR 결과 문서 가져오기
+        results_ref = (
+            db.collection("users")
+            .document(user_id)
+            .collection("contracts")
+            .document(contract_id)
+            .collection("ocr_results")
+        )
+        
+        # 해당 문서 타입의 모든 페이지 결과 가져오기
+        query = results_ref.where("document_type", "==", document_type)
+        docs = query.stream()
+        
+        results = {}
+        for doc in docs:
+            data = doc.to_dict()
+            if "ocr_result" in data:
+                results[f"page{data['pageNumber']}"] = data["ocr_result"]
+        
+        return {document_type: results} if results else None
+
     except Exception as e:
-        print(f"분석 결과 조회 실패: {e}")
+        print(f"❌ OCR 결과 조회 실패: {e}")
         return None
 
 def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -> bool:
@@ -162,19 +151,19 @@ def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -
             .document(user_id)
             .collection("contracts")
             .document(contract_id)
-            .collection("analysis")
+            .collection("ocr_results")
             .document("combined_analysis")
         )
+        combined_data['createdAt'] = firestore.SERVER_TIMESTAMP
+        combined_data['updatedAt'] = firestore.SERVER_TIMESTAMP
         
         
-        doc_ref.set({
-            **combined_data,  # OCR 결과 데이터
-        })
-        print(f"✅ 통합 OCR 결과 저장 완료: /users/{user_id}/contracts/{contract_id}/analysis/combined_analysis")
+        
+        doc_ref.set(combined_data, merge=True)
+        print(f"✅ 통합 OCR 결과 저장 완료: /users/{user_id}/contracts/{contract_id}/ocr_results/combined_analysis")
         return True
     except Exception as e:
         print(f"❌ 통합 OCR 결과 저장 실패: {e}")
-
         return False
     
     
@@ -219,7 +208,7 @@ def update_analysis_status(user_id: str, contract_id: str, status: str):
         )
         
         contract_ref.update({
-            "analysisResult": status,
+            "analysisStatus": status,
             "updatedAt": firestore.SERVER_TIMESTAMP
         })
         print(f"✅ 분석 상태 업데이트: {status}")

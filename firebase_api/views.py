@@ -50,73 +50,73 @@ def test_firebase_connection(request):
 
 
 
-@csrf_exempt
-@csrf_exempt
+
 def fetch_latest_documents(request):
+    """
+    Firestore에서 최신 문서 URL 가져오기
+    """
     try:
-        if request.method == 'POST':
-            data = json.loads(request.body)
-            user_id = data.get('user_id')
-            contract_id = data.get('contract_id')
-            document_type = data.get('document_type')
-        else:
-            user_id = request.GET.get('user_id')
-            contract_id = request.GET.get('contract_id')
-            document_type = request.GET.get('document_type')
+        user_id = request.GET.get('user_id')
+        contract_id = request.GET.get('contract_id')
+
+        print(f"Fetching documents for user_id: {user_id}, contract_id: {contract_id}")
 
         if not user_id or not contract_id:
-            return JsonResponse({"error": "user_id와 contract_id가 필요합니다"}, status=400)
+            return JsonResponse({
+                "error": "user_id와 contract_id가 필요합니다"
+            }, status=400)
 
-        contract_ref = (db.collection("users")
-                       .document(user_id)
-                       .collection("contracts")
-                       .document(contract_id))
+        # 계약 문서 직접 참조
+        contract_ref = (
+            db.collection("users")
+            .document(user_id)
+            .collection("contracts")
+            .document(contract_id)
+        )
 
-        doc = contract_ref.get()
+        # 문서 가져오기
+        contract_doc = contract_ref.get()
+        if not contract_doc.exists:
+            return JsonResponse({
+                "error": "계약 문서를 찾을 수 없습니다"
+            }, status=404)
+
+        contract_data = contract_doc.to_dict()
         
-        if not doc.exists:
-            print(f"❌ 문서를 찾을 수 없음: {user_id}/{contract_id}")
-            return JsonResponse({"error": "계약 문서를 찾을 수 없습니다"}, status=404)
-
-        contract_data = doc.to_dict()
-        print(f"📄 계약 데이터 조회: {contract_id}")
-        print(f"📄 문서 타입: {document_type}")
-        print(f"📄 계약 데이터: {contract_data}")
-
-        latest_session_documents = {
-            "contract": [],
+        # 문서 타입별로 URL 분류
+        classified_docs = {
             "registry_document": [],
+            "contract": [],
             "building_registry": []
         }
-        
-        # 각 문서 타입별 데이터 처리
-        for doc_type in latest_session_documents.keys():
-            if doc_type in contract_data:
-                if doc_type == 'building_registry':
-                    # building_registry는 객체 리스트 구조
-                    pages = contract_data[doc_type]
-                    for page in pages:
-                        if isinstance(page, dict) and 'imageUrl' in page:
-                            latest_session_documents[doc_type].append(page['imageUrl'])
-                else:
-                    # contract와 registry_document는 URL 문자열 리스트
-                    if isinstance(contract_data[doc_type], list):
-                        latest_session_documents[doc_type].extend(contract_data[doc_type])
 
-        # 요청된 document_type에 대한 URL이 없는 경우
-        if document_type and not latest_session_documents.get(document_type):
-            print(f"❌ {document_type} 타입의 문서 URL을 찾을 수 없음")
-            return JsonResponse({"error": "문서 URL을 찾을 수 없습니다"}, status=404)
+        # building_registry 처리
+        if 'building_registry' in contract_data:
+            for doc in contract_data['building_registry']:
+                if 'imageUrl' in doc:
+                    classified_docs['building_registry'].append(doc['imageUrl'])
 
-        response_data = {
-            "classified_documents": latest_session_documents,
-            "user_id": user_id,
-            "contract_id": contract_id
-        }
-        
-        print(f"✅ 응답 데이터: {response_data}")
-        return JsonResponse(response_data)
-    
+        # contract 처리
+        if 'contract' in contract_data:
+            # contract가 문자열 URL 배열인 경우
+            for doc in contract_data['contract']:
+                if 'imageUrl' in doc:
+                    classified_docs['contract'].append(doc['imageUrl'])
+
+        # registry_document 처리
+        if 'registry_document' in contract_data:
+            for doc in contract_data['registry_document']:
+                if 'imageUrl' in doc:
+                    classified_docs['registry_document'].append(doc['imageUrl'])
+
+        print(f"Classified documents: {classified_docs}")
+
+        return JsonResponse({
+            "classified_documents": classified_docs
+        })
+
     except Exception as e:
-        print(f"❌ 문서 조회 중 오류 발생: {str(e)}")
-        return JsonResponse({"error": str(e)}, status=500)
+        print(f"Error in fetch_latest_documents: {str(e)}")
+        return JsonResponse({
+            "error": f"문서 조회 중 오류 발생: {str(e)}"
+        }, status=500)
