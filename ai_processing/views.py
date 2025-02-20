@@ -185,7 +185,7 @@ def start_analysis(request):
         # 데이터 통합
         merged_data = {
             "contract": contract_results.get("contract", {}),
-            "building_registry": {"1": building_results.get("building_registry", {}).get("page1", {})},
+            "building_registry": {"1": building_results.get("building_registry", {}).get("page1", {})}, # 지금은 1페이지만 가져오도록 되어있음 나중에 수정생각?
             "registry_document": registry_results.get("registry_document", {})
         }
 

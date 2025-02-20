@@ -2,6 +2,55 @@ import json
 import os
 from datetime import datetime
 
+def adjust_owners(merged_data):
+    """
+    건축물대장의 소유자 수에 맞춰 등기부등본의 소유자 수 조정
+    가장 최근 소유자만 유지
+    """
+    try:
+        # 건축물대장에서 소유자 수 확인
+        building_owner_count = sum(1 for key in merged_data["building_registry"]["1"].keys() 
+                                 if key.startswith("성명"))
+
+        # 등기부등본에서 소유자 정보 수집
+        owners = []
+        for page_key, page_content in merged_data["registry_document"].items():
+            if not isinstance(page_content, dict):
+                continue
+            
+            for key, value in page_content.items():
+                if key.startswith("소유자_"):
+                    owner_info = {
+                        "page": page_key,
+                        "key": key,
+                        "y1": value["bounding_box"]["y1"],
+                        "text": value.get("text", ""),
+                        "data": value
+                    }
+                    owners.append(owner_info)
+                    print(f"- 소유자 발견: {owner_info['text']} ({owner_info['page']} - {owner_info['key']})")
+
+        # 소유자 정보를 y1 좌표 기준으로 정렬 (위에서 아래로)
+        owners.sort(key=lambda x: x["y1"])
+        
+        # 초과하는 소유자 수 계산
+        owners_to_remove = len(owners) - building_owner_count
+
+        # 초과하는 소유자 정보 삭제 (이전 소유자부터)
+        if owners_to_remove > 0:
+            print(f"\n{owners_to_remove}명의 이전 소유자 정보를 제외합니다")
+            for i in range(owners_to_remove):
+                owner = owners[i]
+                print(f"- 제외: {owner['text']} ({owner['page']} - {owner['key']})")
+                del merged_data["registry_document"][owner["page"]][owner["key"]]
+
+        return merged_data
+
+    except Exception as e:
+        print(f"소유자 수 조정 중 오류 발생: {str(e)}")
+        raise
+
+
 def validate_documents(merged_data):
     """문서 데이터 검증 및 경고 메시지 추가
     
@@ -14,11 +63,20 @@ def validate_documents(merged_data):
     6. 위험 단어 검사
     """
     try:
+        # 소유자 수 조정
+        merged_data = adjust_owners(merged_data)
+
         # 1. 소유자 정보 일치 여부 검증
         contract_owner = merged_data["contract"]["1"]["임대인"]["text"]
         building_owner = merged_data["building_registry"]["1"].get("성명1", {}).get("text", "")
-        reg_owners = [v["text"] for k, v in merged_data["registry_document"]["2페이지"].items() 
-                     if k.startswith("소유자_")]
+        reg_owners = []
+        
+        # 조정된 등기부등본에서 최신 소유자 정보 확인
+        for page_key, page_content in merged_data["registry_document"].items():
+            if isinstance(page_content, dict):
+                for key, value in page_content.items():
+                    if key.startswith("소유자_"):
+                        reg_owners.append(value["text"])
 
         # 임대인이 building_registry나 registry_document에 포함되어 있는지 확인
         owner_match = contract_owner in [building_owner] + reg_owners
@@ -26,16 +84,18 @@ def validate_documents(merged_data):
             merged_data["contract"]["1"]["임대인"]["notice"] = "[경고] 집주인과 임대인이 다릅니다."
             if "성명1" in merged_data["building_registry"]["1"]:
                 merged_data["building_registry"]["1"]["성명1"]["notice"] = "[경고] 집주인과 임대인이 다릅니다."
-            for k, v in merged_data["registry_document"]["2페이지"].items():
-                if k.startswith("소유자_"):
-                    v["notice"] = "[경고] 집주인과 임대인이 다릅니다."
+            for page_key, page_content in merged_data["registry_document"].items():
+                if isinstance(page_content, dict):
+                    for key, value in page_content.items():
+                        if key.startswith("소유자_"):
+                            value["notice"] = "[경고] 집주인과 임대인이 다릅니다."
 
         # 2. 소재지 정보 일치 여부 검증
         contract_address = merged_data["contract"]["1"]["소재지"]["text"]
         reg_address = merged_data["registry_document"]["1페이지"]["건물주소"]["text"]
         building_address = merged_data["building_registry"]["1"]["도로명주소"]["text"]
 
-        # 주소에서 공통 부분 추출
+        # 주소에서 공통 부분 추출 
         if not (building_address in contract_address and any(part in reg_address for part in building_address.split())):
             merged_data["contract"]["1"]["소재지"]["notice"] = "[경고] 건물 주소 정보가 일치하지 않습니다."
             merged_data["registry_document"]["1페이지"]["건물주소"]["notice"] = "[경고] 건물 주소 정보가 일치하지 않습니다."
