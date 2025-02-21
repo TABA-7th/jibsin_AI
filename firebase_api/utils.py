@@ -167,7 +167,7 @@ def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -
         return False
     
     
-def save_analysis_result(user_id: str, contract_id: str, analysis_data: Dict) -> bool:
+def save_analysis_result(user_id: str, contract_id: str, analysis_result: Dict) -> bool:
     """AI 분석 결과를 AI_analysis 컬렉션에 저장"""
     try:
         # AI_analysis 컬렉션에 저장하되, 타임스탬프를 이용한 문서 ID 생성
@@ -183,7 +183,7 @@ def save_analysis_result(user_id: str, contract_id: str, analysis_data: Dict) ->
         )
         
         doc_ref.set({
-            'result': analysis_data,
+            'result': analysis_result,
             'status': 'completed',
             'type': 'ai_analysis',
             'userId': user_id,

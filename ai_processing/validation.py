@@ -65,6 +65,7 @@ def validate_documents(merged_data):
         # 소유자 수 조정
         merged_data = adjust_owners(merged_data)
 
+        
         # 1. 소유자 정보 일치 여부 검증
         contract_owner = merged_data.get("contract", {}).get("page1", {}).get("임대인", {}).get("text", "")
         
