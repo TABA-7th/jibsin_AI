@@ -6,12 +6,15 @@ import firebase_admin
 from firebase_admin import credentials, storage
 from dotenv import load_dotenv
 
+
+
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", os.path.join(BASE_DIR, "firebase_key.json"))
+FIREBASE_KEY_PATH=os.path.join(BASE_DIR, 'firebase_key.json')
+# FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", os.path.join(BASE_DIR, "firebase_key.json"))
 FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET", "jibsin.firebasestorage.app")
 
 # Firebase 키 로드

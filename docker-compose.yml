@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env  # .env 파일 로드
+    depends_on:
+      - db
+    command: ["gunicorn", "--bind", ":8000", "--workers", "2", "jibsinpj.wsgi:application"]
+
+  db:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
