@@ -338,6 +338,9 @@ def start_analysis(request):
             'message': f'분석 처리 중 오류가 발생했습니다: {str(e)}'
         }, status=500)
     
+def test_ai_view(request):
+    return JsonResponse({"message": "AI API is working!"})
+
 
 # @csrf_exempt
 # @require_http_methods(["POST"])
