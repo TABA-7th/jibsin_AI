@@ -19,10 +19,10 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") #  OpenAI API 키
 OCR_SECRET_KEY = os.getenv("OCR_SECRET_KEY") #  네이버 OCR API 키 및 URL
 OCR_API_URL = os.getenv("OCR_API_URL")
-OCR_JSON_PATH = os.getenv("OCR_JSON_PATH") #  OCR 결과 JSON 저장 경로
+#OCR_JSON_PATH = os.getenv("OCR_JSON_PATH") #  OCR 결과 JSON 저장 경로
 
-if not OCR_JSON_PATH:
-    raise ValueError("ERROR: OCR_JSON_PATH가 로드되지 않았습니다!")
+#if not OCR_JSON_PATH:
+    #raise ValueError("ERROR: OCR_JSON_PATH가 로드되지 않았습니다!")
 
 # Firebase 설정 파일 경로
 FIREBASE_KEY_PATH = os.path.join(os.path.dirname(__file__), "firebase_key.json")
