@@ -98,21 +98,65 @@ def merge_images(image_urls):
     
     return merged_image
 
-def get_page_of_text(y_coordinate, page_count):
-    """
-    y 좌표를 기준으로 어떤 페이지에 있는지 판단하는 함수
+# def get_page_of_text(y_coordinate, page_count):
+#     """
+#     y 좌표를 기준으로 어떤 페이지에 있는지 판단하는 함수
     
-    :param y_coordinate: 텍스트의 y 좌표
-    :param page_count: 전체 페이지 수
-    :return: 해당 텍스트가 있는 페이지 번호
-    """
-    page_height = 1755  # 각 페이지의 높이
+#     :param y_coordinate: 텍스트의 y 좌표
+#     :param page_count: 전체 페이지 수
+#     :return: 해당 텍스트가 있는 페이지 번호
+#     """
+#     page_height = 1755  # 각 페이지의 높이
     
-    for page in range(1, page_count + 1):
-        if (page - 1) * page_height <= y_coordinate < page * page_height:
-            return page
+#     for page in range(1, page_count + 1):
+#         if (page - 1) * page_height <= y_coordinate < page * page_height:
+#             return page
     
-    return 1  # 기본값으로 첫 페이지 반환
+#     return 1  # 기본값으로 첫 페이지 반환
+
+def get_page_height(url):
+    """이미지 URL로부터 높이를 가져오는 함수"""
+    response = requests.get(url)
+    if response.status_code == 200:
+        image = Image.open(BytesIO(response.content))
+        return image.height
+    return 1755  # 기본 높이
+
+## 함수 추가가
+def organize_by_pages(data, page_heights):
+    """페이지별로 데이터를 구조화하고 좌표를 보정하는 함수"""
+    
+    # 페이지 경계 계산
+    page_boundaries = []
+    current_height = 0
+    for height in page_heights:
+        page_boundaries.append({
+            'start': current_height,
+            'end': current_height + height
+        })
+        current_height += height
+
+    # 결과를 저장할 딕셔너리 초기화
+    result = {f"{i+1}페이지": {} for i in range(len(page_heights))}
+    
+    # 각 항목을 해당하는 페이지에 할당
+    for key, value in data.items():
+        if isinstance(value, dict) and "bounding_box" in value:
+            y1 = value["bounding_box"]["y1"]
+            
+            # y1 값이 어느 페이지 범위에 속하는지 확인
+            for page_num, boundary in enumerate(page_boundaries):
+                if boundary['start'] <= y1 < boundary['end']:
+                    # 해당 페이지에 항목 추가
+                    page_key = f"{page_num+1}페이지"
+                    new_value = value.copy()
+                    # y 좌표 보정
+                    new_value["bounding_box"]["y1"] -= boundary['start']
+                    new_value["bounding_box"]["y2"] -= boundary['start']
+                    result[page_key][key] = new_value
+                    break
+    
+    return result
 
 def cre_ocr(image):
     """PIL Image 객체에 대해 OCR 실행"""
@@ -220,19 +264,27 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     """메인 OCR 처리 함수"""
 
     page_numbers = [int(re.search(r'page(\d+)', url).group(1)) for url in image_urls]
+    page_heights = []
 
-    # 이미지 병합
-    merged_image = merge_images(image_urls)
+
     
     all_dfs = []
     y = 0
     
-    # OCR 수행
-    df = cre_ocr(merged_image)
-    df["y1"] += y
-    df["y2"] += y
-    all_dfs.append(df)
-    y += 1755
+    # 각 페이지별 OCR 수행 및 높이 정보 수집
+    for url in image_urls:
+        response = requests.get(url)
+        if response.status_code == 200:
+            image = Image.open(BytesIO(response.content))
+            page_heights.append(image.height)
+            
+            # 각 페이지별 OCR 수행
+            df = cre_ocr(image)
+            if df is not None:
+                df["y1"] += y
+                df["y2"] += y
+                all_dfs.append(df)
+                y += image.height
     
     merged_df = pd.concat(all_dfs, ignore_index=True)
 
@@ -240,9 +292,9 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     xy_json = xy.to_json(orient="records", force_ascii=False)
     df_json = merged_df.to_json(orient="records", force_ascii=False)
 
-    current_page = re.search(r'page(\d+)', image_urls[0]).group(1)
-    page_number = int(current_page)  # str을 int로 변환
-    page_count = len(image_urls)  # 전체 페이지 수
+    # current_page = re.search(r'page(\d+)', image_urls[0]).group(1)
+    # page_number = int(current_page)  # str을 int로 변환
+    # page_count = len(image_urls)  # 전체 페이지 수
 
     target_texts = {
             "종류": "등본 종류 (집합건물, 건물, 토지 중 하나)",
@@ -320,38 +372,51 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     text = response.choices[0].message.content.strip()
     data = json.loads(fix_json_format(text))
 
+    # 불필요한 필드 제거
+    data.pop("(소유권에 관한 사항)", None)
+    data.pop("(소유권 이외의 권리에 대한 사항)", None)
+
+    # 6. 페이지별 데이터 구조화
+    organized_data = organize_by_pages(data, page_heights)
+
+
+    # 7. 페이지 번호 형식 맞추기
     page_structured_data = {}
-    
-    for key, value in data.items():
-        if isinstance(value, dict) and "bounding_box" in value:
-            # 원본 페이지 번호 기준으로 페이지 결정
-            page_index = get_page_of_text(value["bounding_box"]["y1"], page_count)
-            page_key = f"page{page_numbers[page_index - 1]}"
-            
-            # 페이지별 딕셔너리 초기화
-            if page_key not in page_structured_data:
-                page_structured_data[page_key] = {}
-            
-            # 해당 페이지에 데이터 추가
-            page_structured_data[page_key][key] = value
-
-    # 기존의 갑구 및 불필요한 필드 처리 로직
-    y1_value = data.get("(소유권에 관한 사항)", {}).get("bounding_box", {}).get("y2", "값 없음")
-    y2_value = data.get("(소유권 이외의 권리에 관한 사항)", {}).get("bounding_box", {}).get("y1", "값 없음")
-
-    if isinstance(y1_value, (int, float)) and isinstance(y2_value, (int, float)):
-        # 갑구의 페이지 결정
-        갑구_page_index = get_page_of_text(y1_value, page_count)
-        page_key = f"page{page_numbers[갑구_page_index - 1]}"
-        page_structured_data[page_key]["갑구"] = {
-            "text": "(갑구)",
-            "bounding_box": {
-                "x1": 0,
-                "y1": y1_value,
-                "x2": 1200,
-                "y2": y2_value
-            }
-        }
-
+    for i, (old_key, value) in enumerate(organized_data.items()):
+        new_key = f"page{page_numbers[i]}"
+        page_structured_data[new_key] = value
 
     return page_structured_data
+
+    # page_structured_data = {}
+    
+    # for key, value in data.items():
+    #     if isinstance(value, dict) and "bounding_box" in value:
+    #         # 원본 페이지 번호 기준으로 페이지 결정
+    #         page_index = get_page_of_text(value["bounding_box"]["y1"], page_count)
+    #         page_key = f"page{page_numbers[page_index - 1]}"
+            
+    #         # 페이지별 딕셔너리 초기화
+    #         if page_key not in page_structured_data:
+    #             page_structured_data[page_key] = {}
+            
+    #         # 해당 페이지에 데이터 추가
+    #         page_structured_data[page_key][key] = value
+
+    # 기존의 갑구 및 불필요한 필드 처리 로직
+    # y1_value = data.get("(소유권에 관한 사항)", {}).get("bounding_box", {}).get("y2", "값 없음")
+    # y2_value = data.get("(소유권 이외의 권리에 관한 사항)", {}).get("bounding_box", {}).get("y1", "값 없음")
+
+    # if isinstance(y1_value, (int, float)) and isinstance(y2_value, (int, float)):
+    #     # 갑구의 페이지 결정
+    #     갑구_page_index = get_page_of_text(y1_value, page_count)
+    #     page_key = f"page{page_numbers[갑구_page_index - 1]}"
+    #     page_structured_data[page_key]["갑구"] = {
+    #         "text": "(갑구)",
+    #         "bounding_box": {
+    #             "x1": 0,
+    #             "y1": y1_value,
+    #             "x2": 1200,
+    #             "y2": y2_value
+    #         }
+    #     }
