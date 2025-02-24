@@ -171,18 +171,18 @@ def cre_ocr(image):
         'version': 'V2',
         'timestamp': int(round(time.time() * 1000))
     }
-    
+
     # 이미지를 바이트 버퍼로 변환
     buffer = BytesIO()
     image.save(buffer, format="JPEG")
     image_bytes = buffer.getvalue()
-    
+
     payload = {'message': json.dumps(request_json).encode('UTF-8')}
     files = [('file', ('image.jpg', image_bytes, 'image/jpeg'))]
     headers = {'X-OCR-SECRET': secret_key}
-    
+
     response = requests.post(api_url, headers=headers, data=payload, files=files)
-    
+
     if response.status_code == 200:
         ocr_results = response.json()
 
@@ -387,6 +387,8 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
         page_structured_data[new_key] = value
 
     return page_structured_data
+
+    
 
     # page_structured_data = {}
     
