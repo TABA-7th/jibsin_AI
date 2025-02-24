@@ -18,7 +18,7 @@ from firebase_api.utils import (
 )
 from .validation import validate_documents
 import traceback
-from .ai_analysis import clean_json, remove_bounding_boxes, restore_bounding_boxes, adjust_owner_count
+from .ai_analysis import (clean_json, remove_bounding_boxes, restore_bounding_boxes, adjust_owner_count, building, price)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -505,8 +505,19 @@ def start_ai_analysis(request):
             # Bounding Box 제거 및 저장
             bounding_boxes = remove_bounding_boxes(merged_data)
             
+            # 주소 일치 여부 확인
+            res_1 = building(merged_data)
+
+            # 공시가격 조회
+            if res_1 != "nan":
+                res = price(res_1)
+                cost=int(res['공시가격'])
+            else:
+                cost = 'nan'
+                print("주소 불일치로 공시가격 조회 불가")
+
             # AI 분석 실행
-            analysis_result = clean_json(merged_data)
+            analysis_result = clean_json(merged_data, res_1, cost)
             
             # Bounding Box 복원
             restore_bounding_boxes(analysis_result, bounding_boxes)
