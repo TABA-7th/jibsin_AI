@@ -309,7 +309,7 @@ def start_analysis(request):
             analysis_result = validate_documents(merged_data)
             
             # AI 분석 결과 저장
-            save_analysis_result(user_id, contract_id, analysis_result)
+            save_analysis_result(user_id, contract_id, analysis_result, image_urls=document_urls)
             
             # 분석 완료 상태 업데이트
             update_analysis_status(user_id, contract_id, "completed")
@@ -523,7 +523,7 @@ def start_ai_analysis(request):
             restore_bounding_boxes(analysis_result, bounding_boxes)
             
             # AI 분석 결과 저장
-            save_analysis_result(user_id, contract_id, analysis_result)
+            save_analysis_result(user_id, contract_id, analysis_result, image_urls=document_urls)
             
             # 분석 완료 상태 업데이트
             update_analysis_status(user_id, contract_id, "completed")

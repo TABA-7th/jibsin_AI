@@ -10,7 +10,10 @@ from firebase_admin import credentials, storage, firestore
 import os
 from google.cloud.firestore import FieldFilter
 from datetime import datetime, timezone
-
+from io import BytesIO
+from PIL import Image
+import requests
+from typing import Dict, List
 
 #  Firebase 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,7 +57,6 @@ def get_latest_images_by_type(): # Firebase Storage에서 가장 최근 업로�
     
 from google.cloud import firestore
 import json
-
 
 
 def save_ocr_result_to_firestore(user_id: str, contract_id: str, 
@@ -167,12 +169,37 @@ def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -
         return False
     
     
-def save_analysis_result(user_id: str, contract_id: str, analysis_result: Dict) -> bool:
-    """AI 분석 결과를 AI_analysis 컬렉션에 저장"""
+def save_analysis_result(user_id: str, contract_id: str, analysis_result: Dict, image_urls: Dict[str, list[str]]) -> bool:
+    """
+    AI 분석 결과를 AI_analysis 컬렉션에 저장
+    
+    Args:
+        user_id (str): 사용자 ID
+        contract_id (str): 계약서 ID
+        analysis_result (Dict): 분석 결과 데이터
+        image_urls (Dict[str, List[str]]): 문서 타입별 이미지 URL 리스트
+        
+    Returns:
+        bool: 저장 성공 여부
+    """
     try:
         # AI_analysis 컬렉션에 저장하되, 타임스탬프를 이용한 문서 ID 생성
         doc_id = f"analysis_{int(datetime.now().timestamp())}"
         
+        # 각 문서 타입별로 이미지 크기 정보 추가
+        for doc_type, urls in image_urls.items():
+            if doc_type not in analysis_result:
+                continue
+                
+            for page_num, url in enumerate(urls, 1):
+                page_key = f"page{page_num}"
+                
+                if page_key in analysis_result[doc_type]:
+                    analysis_result[doc_type][page_key]["image_dimensions"] = {
+                        "width": get_page_width(url),
+                        "height": get_page_height(url)
+                    }
+                    
         doc_ref = (
             db.collection("users")
             .document(user_id)
@@ -217,3 +244,46 @@ def update_analysis_status(user_id: str, contract_id: str, status: str):
     except Exception as e:
         print(f"❌ 분석 상태 업데이트 실패: {e}")
         return False
+    
+
+def get_page_height(url: str) -> int:
+    """
+    이미지 URL로부터 높이를 가져오는 함수
+    
+    Args:
+        url (str): 이미지 URL
+        
+    Returns:
+        int: 이미지 높이. 실패 시 기본값 1755 반환
+    """
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            with Image.open(BytesIO(response.content)) as img:
+                return img.height
+        print(f"❌ 이미지 다운로드 실패 (상태 코드: {response.status_code})")
+        return 1755
+    except Exception as e:
+        print(f"❌ 이미지 높이 측정 실패: {e}")
+        return 1755
+
+def get_page_width(url: str) -> int:
+    """
+    이미지 URL로부터 너비를 가져오는 함수
+    
+    Args:
+        url (str): 이미지 URL
+        
+    Returns:
+        int: 이미지 너비. 실패 시 기본값 1240 반환
+    """
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            with Image.open(BytesIO(response.content)) as img:
+                return img.width
+        print(f"❌ 이미지 다운로드 실패 (상태 코드: {response.status_code})")
+        return 1240
+    except Exception as e:
+        print(f"❌ 이미지 너비 측정 실패: {e}")
+        return 1240
