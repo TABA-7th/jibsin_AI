@@ -9,6 +9,7 @@ import re
 import os
 from dotenv import load_dotenv
 MODEL = "gpt-4o"
+import traceback
 
 # .env 파일 로드
 load_dotenv()
@@ -615,53 +616,92 @@ def analyze_with_gpt(analysis_data):
 
 
 def parse_address(address):
-    parsed_result = {}
+    """
+    주소를 파싱하여 구성요소로 분리합니다. None이나 빈 문자열도 안전하게 처리합니다.
+    """
+    parsed_result = {
+        "시도": "nan",
+        "시군구": "nan",
+        "동리": "nan",
+        "동명": "nan",
+        "호명": "nan",
+        "건물명": "nan"
+    }
+    
+    # 주소가 None이거나 빈 문자열인 경우 기본값 반환
+    if not address:
+        print("주소가 비어있거나 None입니다")
+        return parsed_result
+    
+    # 주소 문자열을 확보한 후 진행
+    address_str = str(address).strip()
+    if not address_str:
+        print("주소가 빈 문자열로 변환되었습니다")
+        return parsed_result
     
     # 시도, 시군구 파싱
-    match = re.search(r"^(서울특별시|부산광역시|경기도|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|제주특별자치도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도)\s+(\S+구|\S+시|\S+군)", address)
-    if match:
-        parsed_result["시도"] = match.group(1)
-        parsed_result["시군구"] = match.group(2)
-        address = address.replace(match.group(0), "").strip()
+    try:
+        match = re.search(r"^(서울특별시|부산광역시|경기도|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|제주특별자치도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도)\s+(\S+구|\S+시|\S+군)", address_str)
+        if match:
+            parsed_result["시도"] = match.group(1)
+            parsed_result["시군구"] = match.group(2)
+            address_str = address_str.replace(match.group(0), "").strip()
+    except Exception as e:
+        print(f"시도, 시군구 파싱 중 오류 발생: {e}")
+        traceback.print_exc()
 
     # 동리 파싱
-    match = re.search(r"(\S+동\d*|\S+읍|\S+면)(?:가)?", address)
-    if match:
-        parsed_result["동리"] = match.group(0)
-        address = address.replace(match.group(0), "").strip()
+    try:
+        match = re.search(r"(\S+동\d*|\S+읍|\S+면)(?:가)?", address_str)
+        if match:
+            parsed_result["동리"] = match.group(0)
+            address_str = address_str.replace(match.group(0), "").strip()
+    except Exception as e:
+        print(f"동리 파싱 중 오류 발생: {e}")
+        traceback.print_exc()
 
     # 동명 파싱
-    match = re.search(r"(?:제)?(\d+)동", address)
-    if match:
-        parsed_result["동명"] = match.group(1)
-        address = re.sub(r"제?\d+동", "", address).strip()
+    try:
+        match = re.search(r"(?:제)?(\d+)동", address_str)
+        if match:
+            parsed_result["동명"] = match.group(1)
+            address_str = re.sub(r"제?\d+동", "", address_str).strip()
+    except Exception as e:
+        print(f"동명 파싱 중 오류 발생: {e}")
+        traceback.print_exc()
 
     # 층수 제거
-    address = re.sub(r"제?\d+층", "", address).strip()
+    try:
+        address_str = re.sub(r"제?\d+층", "", address_str).strip()
+    except Exception as e:
+        print(f"층수 제거 중 오류 발생: {e}")
+        traceback.print_exc()
 
     # 호명 파싱
-    match = re.search(r"(?:제)?(\d+)호", address)
-    if match:
-        parsed_result["호명"] = match.group(1)
-        address = re.sub(r"제?\d+호", "", address).strip()
+    try:
+        match = re.search(r"(?:제)?(\d+)호", address_str)
+        if match:
+            parsed_result["호명"] = match.group(1)
+            address_str = re.sub(r"제?\d+호", "", address_str).strip()
+    except Exception as e:
+        print(f"호명 파싱 중 오류 발생: {e}")
+        traceback.print_exc()
 
     # 건물명 파싱
-    building_match = re.search(r"([가-힣A-Za-z0-9]+(?:[가-힣A-Za-z0-9\s]+)?(?:아파트|빌라|오피스텔|타워|팰리스|파크|하이츠|프라자|빌딩|스카이|센터|시티|맨션|코아|플라자|타운|힐스))", address)
-    if building_match:
-        parsed_result["건물명"] = building_match.group(1)
-        address = address.replace(building_match.group(1), "").strip()
-
-    # 누락된 필드 처리
-    for key in ["시도", "시군구", "동리", "동명", "호명"]:
-        if key not in parsed_result:
-            parsed_result[key] = "nan"
+    try:
+        building_match = re.search(r"([가-힣A-Za-z0-9]+(?:[가-힣A-Za-z0-9\s]+)?(?:아파트|빌라|오피스텔|타워|팰리스|파크|하이츠|프라자|빌딩|스카이|센터|시티|맨션|코아|플라자|타운|힐스))", address_str)
+        if building_match:
+            parsed_result["건물명"] = building_match.group(1)
+    except Exception as e:
+        print(f"건물명 파싱 중 오류 발생: {e}")
+        traceback.print_exc()
 
     return parsed_result
 
 
 #공시가 구하기
 def price(address):
-    result = parse_address(address)
+    result = parse_address(address) ## 이게 문제일 수도
     # 모든 시도에 대한 GCS 파일 경로 매핑
     gcs_urls = {
         "서울특별시": "https://storage.googleapis.com/jipsin/storage/seoul.csv",
