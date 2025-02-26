@@ -163,7 +163,7 @@ def save_summary_to_firestore(user_id, contract_id, summary_data):
         # 'summaries' 컬렉션에 저장
         summary_ref = db.collection('users').document(user_id)\
                         .collection('contracts').document(contract_id)\
-                        .collection('summary').document('summary')
+                        .collection('summary_analysis').document('summary')
         
         summary_ref.set(summary_data)
         print(f"✅ 요약 결과 저장 완료: {user_id}/{contract_id}")
