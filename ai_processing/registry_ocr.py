@@ -385,6 +385,7 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
     # 불필요한 필드 제거
     data.pop("(소유권에 관한 사항)", None)
     data.pop("(소유권 이외의 권리에 대한 사항)", None)
+    data.pop("( 소유권 이외의 권리에 대한 사항 )", None)
 
     # 6. 페이지별 데이터 구조화
     organized_data = organize_by_pages(data, page_heights)
