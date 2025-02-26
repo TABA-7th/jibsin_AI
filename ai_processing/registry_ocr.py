@@ -52,7 +52,7 @@ def base_xy():
         ['등기목적',170,3910,314,3944],
         ['접수', 390,3904,490,3946],
         ['등기원인',524,3906,668,3952],
-        ['관리자 및 기타사항', 824,3902,1030,3946],
+        ['관리자 및 기타사항', 824,3902,1030,3946], # 갑구는 있어야돼! ['(갑구)',38,3902,1156,4526],
         ['소유자', 824,3902,1030,4462],
         ['[을 구] (소유권 이외의 권리에 대한 사항)', 88,4562,796,4608],
         ['순위번호',46,4628,134,4658],
@@ -309,7 +309,8 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
             "가처분":"가처분 (예: 가처분, 이외의 다른 단어가 있으면 안됨)",
             "가압류":"가압류 (예: 가압류, 이외의 다른 단어가 있으면 안됨)",
             "(소유권 이외의 권리에 대한 사항)":"(소유권 이외의 권리에 대한 사항)",
-            "(채권최고액)": "최고채권액 금 ###원(예: 채권최고액 금1,000,000,000원)",
+            "(채권최고액_1)": "최고채권액 금 ###원(예: 채권최고액 금1,000,000,000원)",
+            "(채권최고액_2)": "최고채권액 금 ###원(예: 채권최고액 금2,400,000,000원)",
             "이하여백": "이 하 여 백"
         }
     
@@ -359,9 +360,8 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
                             f"- df 기준으로 없는 내용을 추가하지 말것"
                             f"- 소유주는 '(소유권 이외의 권리에 관한 사항)'와 '(소유권에 관한 사항) 사이에 해당하는 모든 이름이다'"
                             f"- 소유주가 여러명인 경우 소유주_1, 소유주_2 의 형식으로 출력된다"
-                            f"- 채권최고액은 '(소유권에 관한 사항)' 과 '이하여백' 사이에 해당하는 모든 금액이다."
-                            f"- 채권최고액은 여러개인 경우 채권최고액_1, 채권최고액_2의 형식으로 출력된다."
-                            f"- 채권최고액은 채권최고액_i 중 가장 i가 큰 것만을 출력한다."
+                            f"- 소유주가 여러명인 경우 소유주_1, 소유주_2, 각 소유자에 대한 좌표를 검출한다."
+                            f"- 채권최고액은 채권최고액_i식으로 여러개일 확률이 높으므로 i값이 가장 큰 채권최고액만 검출한다 "
                             f"- JSON 형식이 정확하도록 반환할 것!\n"
                             f"- JSON 형식 이외의 어떤 알림, 내용은 첨가하지 말것!\n"
                             f"- 반환 내용 외의 경고, 알림은 반환하지 말것\n"
@@ -396,9 +396,68 @@ def registry_keyword_ocr(image_urls, doc_type, user_id, contract_id):
         new_key = f"page{page_numbers[i]}"
         page_structured_data[new_key] = value
 
+    # 8. 3페이지에서 잘못 인식된 갑구 제거
+    if "page3" in page_structured_data and "(갑구)" in page_structured_data["page3"]:
+        page_structured_data["page3"].pop("(갑구)")
+        print("⚠️ 3페이지에서 잘못 인식된 (갑구) 항목이 제거되었습니다.")
+    
+    # 9. 채권최고액 중 가장 번호가 큰 것만 남기기
+    page_structured_data = keep_latest_mortgage_amount(page_structured_data)
+    
     return page_structured_data
 
     
+
+def keep_latest_mortgage_amount(data):
+    """
+    채권최고액_i 중에서 i 값이 가장 큰 채권최고액만 남기는 함수
+    
+    Args:
+        data (dict): OCR 결과 데이터
+    
+    Returns:
+        dict: 가장 번호가 큰 채권최고액만 남긴 데이터
+    """
+    if not data:
+        return data
+    
+    # 페이지별로 처리
+    for page_key, page_data in data.items():
+        # 해당 페이지의 채권최고액 관련 키들 찾기
+        mortgage_keys = [key for key in page_data.keys() if key.startswith('(채권최고액_')]
+        
+        if len(mortgage_keys) <= 1:
+            continue  # 채권최고액이 하나 이하면 처리 필요 없음
+        
+        # 채권최고액 키에서 번호(i) 추출 및 정렬
+        numbered_keys = []
+        for key in mortgage_keys:
+            try:
+                # 키에서 숫자 부분 추출 (예: '(채권최고액_2)' -> 2)
+                num = int(key.split('_')[1].rstrip(')'))
+                numbered_keys.append((key, num))
+            except (IndexError, ValueError):
+                # 숫자 추출 실패 시 0으로 처리
+                numbered_keys.append((key, 0))
+        
+        # 번호(i)를 기준으로 정렬
+        numbered_keys.sort(key=lambda x: x[1])
+        
+        # 가장 큰 번호의 키만 남기고 나머지는 삭제
+        if numbered_keys:
+            latest_key = numbered_keys[-1][0]  # 가장 큰 번호의 키
+            latest_value = page_data[latest_key]  # 해당 키의 값
+            
+            # 기존 채권최고액 키들 모두 삭제
+            for key, _ in numbered_keys:
+                if key in page_data:
+                    del page_data[key]
+            
+            # 가장 큰 번호의 채권최고액을 '(채권최고액)'으로 다시 추가
+            page_data['(채권최고액)'] = latest_value
+    
+    return data
+
 
     # page_structured_data = {}
     
