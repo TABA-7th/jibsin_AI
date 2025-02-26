@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 MODEL = "gpt-4o"
 import traceback
-
+from firebase_api.utils import save_summary_to_firestore
 # .env 파일 로드
 load_dotenv()
 
@@ -861,6 +861,182 @@ def building(data):
     prompt_json = json.dumps(prompt, ensure_ascii=False, indent=2)
     result = analyze_with_gpt(prompt_json)
     return result['result']
+
+def clean_boundboxing_json(input_json):
+    """
+    바운딩 박스와 같은 불필요한 정보를 제거하는 함수
+    
+    Args:
+        input_json (dict): 입력 JSON 데이터
+    
+    Returns:
+        dict: 정리된 JSON 데이터
+    """
+    if isinstance(input_json, str):
+        # 파일 경로인 경우
+        with open(input_json, 'r', encoding='utf-8') as f:
+            input_json = json.load(f)
+    
+    result = {}
+    
+    # 각 최상위 키에 대해 처리
+    for top_key, top_value in input_json.items():
+        result[top_key] = {}
+        
+        # 각 섹션(페이지) 처리
+        for section_key, section_value in top_value.items():
+            result[top_key][section_key] = {}
+            
+            # 각 항목 처리
+            for item_key, item_value in section_value.items():
+                # 딕셔너리가 아닌 경우 건너뛰기
+                if not isinstance(item_value, dict):
+                    continue
+                
+                # "notice" 키가 있는 항목만 유지
+                if "notice" in item_value:
+                    # 새 항목 생성 (bounding_box 제외)
+                    new_item = {}
+                    for field_key, field_value in item_value.items():
+                        if field_key != "bounding_box":
+                            new_item[field_key] = field_value
+                    
+                    # 결과에 추가
+                    result[top_key][section_key][item_key] = new_item
+            
+            # 빈 섹션이면 삭제
+            if not result[top_key][section_key]:
+                del result[top_key][section_key]
+        
+        # 빈 최상위 키면 삭제
+        if not result[top_key]:
+            del result[top_key]
+    
+    return result
+
+import traceback
+from datetime import datetime, timezone
+
+def summary_result(analysis_data):
+    """
+    분석 데이터를 요약하는 함수
+    
+    Args:
+        analysis_data (dict): 분석 결과 데이터
+    
+    Returns:
+        dict: 요약 결과
+    """
+    prompt = """
+임대차 계약서를 분석하고 다음 JSON 형식으로 결과를 반환해 주세요.  
+각 항목에는 "text" (내용)과 "check" (문제 여부, true/false)를 포함해야 합니다.  
+또한, 계약의 전체 요약 정보를 제공하는 "summary" 키를 추가해야 합니다.  
+
+{
+  "summary": {
+    "text": "[계약의 전체적인 요약 및 주요 문제점]",
+    "check": [true/false]  // 전체 계약에 큰 문제가 있으면 true, 없으면 false
+  },
+  "contract_details": {
+    "임대인": {
+      "text": "[임대인 이름]",
+      "check": [true/false]  // 임대인 정보에 문제가 있으면 true
+    },
+    "소재지": {
+      "text": "[임대차 건물의 주소]",
+      "check": [true/false]
+    },
+    "임차할부분": {
+      "text": "[임차 대상 공간]",
+      "check": [true/false]
+    },
+    "면적": {
+      "text": "[전용 면적 m²]",
+      "check": [true/false]
+    },
+    "계약기간": {
+      "text": "[계약 시작일 ~ 종료일]",
+      "check": [true/false]  // 갱신청구권 언급이 없으면 true
+    },
+    "보증금": {
+      "text": "[보증금 금액]",
+      "check": [true/false]  // 보증금 관련 정보가 불명확하면 true
+    },
+    "차임": {
+      "text": "[월세 금액 및 지불 조건]",
+      "check": [true/false]
+    },
+    "특약사항": {
+      "text": "[특약 조항 요약]",
+      "check": [true/false]  // 특약에서 보호 조항이 미흡하면 true
+    },
+    "등기부등본": {
+      "text": "[건물 소유자 및 주요 정보]",
+      "check": [true/false]
+    }
+  }
+}
+"""
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "user", "content": f"다음 JSON 데이터를 분석해 주세요:\n\n```json\n{analysis_data}\n```\n\n이 데이터에서 'notice'와 'solution' 정보를 기반으로 계약의 주요 문제점과 해결책을 요약해주세요."},
+            {"role": "user", "content": f"출력 양식은 다음과 같습니다. {prompt}"}
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=3000
+    )
+    return json.loads(response.choices[0].message.content.strip())
+
+
+def generate_and_save_summary(analysis_result, user_id, contract_id):
+    """
+    분석 결과를 요약하고 Firestore에 저장하는 함수
+    
+    Args:
+        analysis_result (dict): 분석 결과 데이터
+        user_id (str): 사용자 ID
+        contract_id (str): 계약 ID
+        
+    Returns:
+        dict: 요약 결과
+    """
+    try:
+        # 1. 바운딩 박스 제거
+        cleaned_data = clean_boundboxing_json(analysis_result)
+        
+        # 2. GPT로 요약 생성
+        summary_data = summary_result(cleaned_data)
+        
+        # 3. 메타데이터 추가
+        summary_data.update({
+            "userId": user_id,
+            "contractId": contract_id,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # 4. Firestore에 저장
+        save_success = save_summary_to_firestore(user_id, contract_id, summary_data)
+        
+        # 5. 결과 반환
+        if save_success:
+            return summary_data
+        else:
+            return {
+                "error": "요약 저장 실패",
+                "userId": user_id,
+                "contractId": contract_id
+            }
+            
+    except Exception as e:
+        print(f"요약 생성 및 저장 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return {
+            "error": f"요약 생성 및 저장 중 오류 발생: {str(e)}",
+            "userId": user_id,
+            "contractId": contract_id
+        }
+
 # def generate_contract_summary(analysis_result, user_id, contract_id):
     """
     계약서 분석 결과의 주요 정보를 요약하여 저장하는 함수

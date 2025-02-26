@@ -18,7 +18,7 @@ from firebase_api.utils import (
 )
 from .validation import validate_documents
 import traceback
-from .ai_analysis import (clean_json, remove_bounding_boxes, restore_bounding_boxes, adjust_owner_count, building, price)
+from .ai_analysis import (clean_json, remove_bounding_boxes, restore_bounding_boxes, adjust_owner_count, building, price, generate_and_save_summary)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -528,6 +528,16 @@ def start_ai_analysis(request):
             
             # AI 분석 결과 저장
             save_analysis_result(user_id, contract_id, analysis_result, image_urls=document_urls)
+
+            # 여기에 요약 생성 및 저장 로직 추가
+            try:
+                # 분석 결과 요약 생성 및 저장
+                summary_result = generate_and_save_summary(analysis_result, user_id, contract_id)
+                print(f"✅ 계약 요약 생성 및 저장 완료: {user_id}/{contract_id}")
+            except Exception as summary_error:
+                print(f"⚠️ 요약 생성 중 오류 발생 (분석은 계속 진행됨): {str(summary_error)}")
+                traceback.print_exc()
+        
             
             # 분석 완료 상태 업데이트
             update_analysis_status(user_id, contract_id, "completed")

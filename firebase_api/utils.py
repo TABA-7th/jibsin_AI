@@ -14,6 +14,7 @@ from io import BytesIO
 from PIL import Image
 import requests
 from typing import Dict, List
+import traceback
 
 #  Firebase 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -144,6 +145,35 @@ def get_latest_analysis_results(user_id: str, contract_id: str,
     except Exception as e:
         print(f"❌ OCR 결과 조회 실패: {e}")
         return None
+def save_summary_to_firestore(user_id, contract_id, summary_data):
+    """
+    요약 결과를 Firestore에 저장하는 함수
+    
+    Args:
+        user_id (str): 사용자 ID
+        contract_id (str): 계약 ID
+        summary_data (dict): 요약 결과 데이터
+        
+    Returns:
+        bool: 저장 성공 여부
+    """
+    try:
+        from firebase_api.utils import db
+        
+        # 'summaries' 컬렉션에 저장
+        summary_ref = db.collection('users').document(user_id)\
+                        .collection('contracts').document(contract_id)\
+                        .collection('summary').document('summary')
+        
+        summary_ref.set(summary_data)
+        print(f"✅ 요약 결과 저장 완료: {user_id}/{contract_id}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ 요약 저장 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return False
+
 
 def save_combined_results(user_id: str, contract_id: str, combined_data: Dict) -> bool:
     """통합된 OCR 결과를 Firestore에 저장"""
