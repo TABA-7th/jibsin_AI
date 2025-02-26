@@ -122,16 +122,31 @@ def geocode_address(address):
 def analyze_with_gpt(analysis_data):
     message_content = f"다음 데이터를 분석하고 JSON 형식으로 응답해주세요. {analysis_data}"
     
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[{
-            "role": "user",
-            "content": message_content
-        }],
-        response_format={"type": "json_object"},
-        max_tokens=3000
-    )
-    return json.loads(response.choices[0].message.content.strip())
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{
+                "role": "user",
+                "content": message_content
+            }],
+            response_format={"type": "json_object"},  # 명시적으로 JSON 응답 지정
+            max_tokens=3000
+        )
+        
+        # 응답 안전하게 파싱
+        try:
+            return json.loads(response.choices[0].message.content.strip())
+        except json.JSONDecodeError as e:
+            print(f"JSON 파싱 오류: {e}")
+            print(f"원본 응답: {response.choices[0].message.content}")
+            
+            # 기본 응답 반환
+            return {"error": f"JSON 파싱 오류: {str(e)}"}
+            
+    except Exception as e:
+        print(f"API 호출 오류: {e}")
+        return {"error": f"API 호출 오류: {str(e)}"}
+
 #주소 확인
 def parse_address(address):
     parsed_result = {}
@@ -426,22 +441,27 @@ def solution_1(data): #등본, 건축물 대장 상 위험 매물, 면적, 계�
 """
 """
 ```
-"가압류": {
-  "text": "...",
-  "bounding_box": {...},
-  "notice": "가압류가 설정되어 있어 권리 침해 우려가 있습니다",
-  "solution": "가압류 해제 후 계약 진행 권장"
-}
+{{
+  "가압류": {{
+    "text": "...",
+    "bounding_box": {{...}},
+    "notice": "가압류가 설정되어 있어 권리 침해 우려가 있습니다",
+    "solution": "가압류 해제 후 계약 진행 권장"
+  }}
+}}
+
 ```
 
 위반건축물이 있다면:
 ```
-"위반건축물": {
-  "text": "...",
-  "bounding_box": {...},
-  "notice": "위반건축물로 등록되어 있어 법적 문제가 있습니다",
-  "solution": "위반 내용 확인 및 시정 후 계약 진행 권장"
-}
+{{
+  "위반건축물": {{
+    "text": "...",
+    "bounding_box": {{...}},
+    "notice": "위반건축물로 등록되어 있어 법적 문제가 있습니다",
+    "solution": "위반 내용 확인 및 시정 후 계약 진행 권장"
+  }}
+}}
 ```
 
 주소/면적/계약기간 불일치는 해당 필드에 notice와 solution을 추가해주세요.
@@ -449,8 +469,10 @@ def solution_1(data): #등본, 건축물 대장 상 위험 매물, 면적, 계�
 
 문제가 없는 항목은 다음과 같이 추가해주세요:
 ```
-"notice": "문제 없음",
-"solution": "계약 진행 가능"
+{{
+  "notice": "문제 없음",
+  "solution": "계약 진행 가능"
+}}
 ```
 
 원본 데이터의 모든 구조를 유지하고, 필요한 필드에만 notice와 solution을 추가하는 방식으로 결과를 JSON 형태로 반환해주세요.
@@ -458,97 +480,114 @@ def solution_1(data): #등본, 건축물 대장 상 위험 매물, 면적, 계�
     result = analyze_with_gpt(promt)
 
     return result
+
 def solution_2(data): #사용자 이름
-    promt = (f"""
+    promt = f"""
 {data}에서 'contract'는 계약서, 'building_registry'는 건축물 대장, 'registry_document'는 등기부등본이다.
 계약서에서 '임대인', 건축물대장에서 '성명', 등기부등본에서 '소유자'이 일치하는지 확인 할 것.
 성명, 소유자가 1명이 아닌 경우 공동명의로 판단한다.
 성명끼리는 같은 notice와 solution을 출력한다.
 소유자끼리는 같은 notice와 solution을 출력한다.
-"""
-"""
+
 소유자가 한 명이 아니라면 '임대인'의 notice에 공지한다.
-```
-"임대인": {
-  "text": "...",
-  "bounding_box": {...},
-  "notice": "소유자가 공동명의로 확인됩니다",
-  "solution": "다른 소유주의 확인 필요"
-}
-```
+{{
+  "임대인": {{
+    "text": "...",
+    "bounding_box": {{...}},
+    "notice": "소유자가 공동명의로 확인됩니다",
+    "solution": "다른 소유주의 확인 필요"
+  }}
+}}
+
 건축물대장 '성명'과 등기부등본의 '소유자', 계약서의 '임대인' 중 일치하지 않는 것이 있다면
-```
-"소유자": {
-  "text": "...",
-  "bounding_box": {...},
-  "notice": "건축물 대장 혹은 계약서의 임대인과 일치하지 않습니다",
-  "solution": "임대인을 확실하게 확인하여 주십시오."
-}
-```
-```
-"성명": {
-  "text": "...",
-  "bounding_box": {...},
-  "notice": "건축물 대장 혹은 계약서의 임대인과 일치하지 않습니다",
-  "solution": "임대인을 확실하게 확인하여 주십시오."
-}
-```
+{{
+  "소유자": {{
+    "text": "...",
+    "bounding_box": {{...}},
+    "notice": "건축물 대장 혹은 계약서의 임대인과 일치하지 않습니다",
+    "solution": "임대인을 확실하게 확인하여 주십시오."
+  }}
+}}
+
+{{
+  "성명": {{
+    "text": "...",
+    "bounding_box": {{...}},
+    "notice": "건축물 대장 혹은 계약서의 임대인과 일치하지 않습니다",
+    "solution": "임대인을 확실하게 확인하여 주십시오."
+  }}
+}}
 
 임대인/성명/소유자 불일치는 해당 필드에 notice와 solution을 추가해주세요.
 문제가 없는 항목은 다음과 같이 추가해주세요:
-```
-"notice": "문제 없음",
-"solution": "계약 진행 가능"
-```
+{{
+  "notice": "문제 없음",
+  "solution": "계약 진행 가능"
+}}
 
 원본 데이터의 모든 구조를 유지하고, 필요한 필드에만 notice와 solution을 추가하는 방식으로 결과를 JSON 형태로 반환해주세요.
-""")
+"""
     result = analyze_with_gpt(promt)
 
-    return  result
-def solution_3(data,cost): #보증금, 근저당권, 공시가
-    promt = (f"""
+    return result
+
+
+def solution_3(data, cost): #보증금, 근저당권, 공시가
+    # 이전 코드에서 문자열 연결과 중첩 따옴표가 혼합되어 있어 오류 발생 가능성 높음
+    
+    # 단일 f-string으로 수정하여 일관성 유지
+    prompt = f"""
 {data}에서 'contract'는 계약서, 'building_registry'는 건축물 대장, 'registry_document'는 등기부등본이다. {cost}는 공시가격이다.
-"""
-f"""
+
 다음 항목들을 분석하여 문제가 있으면 각 항목별로 notice와 solution을 추가해주세요:
 '보증금', '채권최고액' 외에는 notice, solution을 추가하지 않는다.
+
 1. 보증금 일관성 확인:
    - 보증금_1과 보증금_2의 금액이 다른 경우 오류 메시지를 출력
    - 금액 차이가 있는 경우 두 보증금 필드 모두에 오류 표시
 
-
 원본 데이터 구조를 유지하면서, 분석한 항목에 'notice'와 'solution' 필드를 추가해주세요.
-예를 들어, 보증금_1과 보증금_2의 금액이 다른 경우:
 
-```json
-"보증금_1": {{
-  "text": "...",
-  "bounding_box": {{...}},
-  "notice": "보증금_2와 금액이 다릅니다",
-  "solution": "계약서 내용 확인 후 보증금 금액을 일치시켜야 합니다."
+예시 형식:
+{{
+  "보증금_1": {{
+    "text": "예시 텍스트",
+    "bounding_box": {{...}},
+    "notice": "보증금_2와 금액이 다릅니다",
+    "solution": "계약서 내용 확인 후 보증금 금액을 일치시켜야 합니다."
+  }}
 }}
+
 채권최고액에 대한 분석 결과는 다음과 같이 추가해주세요:
-"채권최고액": {{
-  "text": "...",
-  "bounding_box": {{...}},
-  "notice": "채권최고액이 보증금과 공시가격({cost})를 초과하는지 확인하세요",
-  "solution": "채권최고액은 보증금과 공시가격의 차이 이내로 설정하는 것이 안전합니다."
+{{
+  "채권최고액": {{
+    "text": "예시 텍스트",
+    "bounding_box": {{...}},
+    "notice": "채권최고액이 보증금과 공시가격({cost})를 초과하는지 확인하세요",
+    "solution": "채권최고액은 보증금과 공시가격의 차이 이내로 설정하는 것이 안전합니다."
+  }}
 }}
-공시가격이 :
-"보증금_1": {{
-  "text": "...",
-  "bounding_box": {{...}},
-  "notice": "공시가격 정보가 없어 적정 보증금 여부를 판단할 수 없습니다.",
-  "solution": "국토교통부 부동산 공시가격 알리미 등을 통해 공시가격을 확인하세요."
-}}
-문제가 없는 항목은 다음과 같이 추가해주세요:
-"notice": "문제 없음",
-"solution": "계약 진행 가능"
-""")
-    result = analyze_with_gpt(promt)
 
-    return  result
+공시가격이 없는 경우:
+{{
+  "보증금_1": {{
+    "text": "예시 텍스트",
+    "bounding_box": {{...}},
+    "notice": "공시가격 정보가 없어 적정 보증금 여부를 판단할 수 없습니다.",
+    "solution": "국토교통부 부동산 공시가격 알리미 등을 통해 공시가격을 확인하세요."
+  }}
+}}
+
+문제가 없는 항목은 다음과 같이 추가해주세요:
+{{
+  "notice": "문제 없음",
+  "solution": "계약 진행 가능"
+}}
+
+JSON 형식으로 응답해주세요.
+"""
+    result = analyze_with_gpt(prompt)
+    return result
 
 def merge_analysis(sol_json, analysis_jsons):
     """
