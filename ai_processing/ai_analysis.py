@@ -254,9 +254,10 @@ def clean_json(data,res_1,cost):
         if "registry_document" in data:
             for key, sub_data in data["registry_document"].items():
                 if isinstance(sub_data, dict):
-                    if "건물주소" in sub_data:
-                        data["registry_document"][key]["건물주소"]["notice"] = result.get("notice", "")
-                        data["registry_document"][key]["건물주소"]["solution"] = result.get("solution", "")
+                    for target_key in ["신탁", "가압류", "가등기", "가처분", "건물주소"]:
+                        if "건물주소" in sub_data:
+                            data["registry_document"][key]["건물주소"]["notice"] = result.get("notice", "")
+                            data["registry_document"][key]["건물주소"]["solution"] = result.get("solution", "")
 
         return data
     
