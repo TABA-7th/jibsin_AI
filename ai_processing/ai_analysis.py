@@ -173,7 +173,7 @@ def clean_json(data,res_1,cost):
         if "building_registry" in data:
             for key, sub_data in data["building_registry"].items():
                 if isinstance(sub_data, dict):
-                    for target_key in ["대지위치", "도로명주소", "면적"]:
+                    for target_key in ["대지위치", "도로명주소", "면적", "위반건축물"]:
                         if target_key in sub_data:
                             analysis_data["building_registry"][target_key] = sub_data[target_key]["text"]
 
@@ -246,7 +246,7 @@ def clean_json(data,res_1,cost):
         if "building_registry" in data:
             for key, sub_data in data["building_registry"].items():
                 if isinstance(sub_data, dict):
-                    for target_key in ["대지위치", "도로명주소", "면적"]:
+                    for target_key in ["대지위치", "도로명주소", "면적", "위반건축물"]:
                         if target_key in sub_data:
                             data["building_registry"][key][target_key]["notice"] = result.get("notice", "")
                             data["building_registry"][key][target_key]["solution"] = result.get("solution", "")

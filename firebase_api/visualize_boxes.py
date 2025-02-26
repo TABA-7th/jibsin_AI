@@ -578,7 +578,7 @@ def visualize_bounding_boxes_and_upload(user_id, contract_id):
 # 실행 코드
 if __name__ == "__main__":
     USER_ID = "test_user"
-    CONTRACT_ID = "test_user-CT-2502244383"
+    CONTRACT_ID = "test_user-CT-2502262565"
     
     print(f"사용자 {USER_ID}의 계약서 {CONTRACT_ID}에 대한 바운딩 박스 시각화 및 업로드를 시작합니다...")
     success = visualize_bounding_boxes_and_upload(USER_ID, CONTRACT_ID)
