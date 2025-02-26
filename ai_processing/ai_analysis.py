@@ -701,7 +701,7 @@ def parse_address(address):
 
 #공시가 구하기
 def price(address):
-    result = parse_address(address) ## 이게 문제일 수도
+    result = parse_address(address)
     # 모든 시도에 대한 GCS 파일 경로 매핑
     gcs_urls = {
         "서울특별시": "https://storage.googleapis.com/jipsin/storage/seoul.csv",
@@ -728,65 +728,70 @@ def price(address):
         df = pd.read_csv(gcs_url)
     else:
         print("해당 시도에 대한 GCS 데이터 없음")
-    cost = df[
-        (df['시도']==result["시도"]) &
-        (df['시군구']==result["시군구"]) &
-        (df['동리']==result["동리"]) &
-        (df["동명"]==result["동명"]) &
-        (df["호명"]==result["호명"])
-    ]
-
-    if cost.empty:
+        return {"error": "해당 시도에 대한 데이터를 찾을 수 없습니다.", "공시가격": "NA"}
+    
+    try:
         cost = df[
             (df['시도']==result["시도"]) &
             (df['시군구']==result["시군구"]) &
-            (df['동리']==result["동리"])
+            (df['동리']==result["동리"]) &
+            (df["동명"]==result["동명"]) &
+            (df["호명"]==result["호명"])
         ]
-        
 
-    cost_records = cost.to_dict(orient='records')
-
-    # DataFame에서 직접 공시가격 확인 (GPT 호출 없이)
-    if not cost.empty:
-        # 결과가 1개만 있으면 바로 반환
-        if len(cost) == 1:
-            direct_price = cost.iloc[0]['공시가격']
-            return {"공시가격": direct_price, "method": "direct_match"}
-    
-    # GPT 분석 사용
-    if len(cost_records) == 0:
-        print("검색 결과가 없습니다. 데이터베이스에 해당 주소와 유사한 항목이 없습니다.")
-        return {"error": "해당 주소를 찾을 수 없습니다.", "공시가격": "NA"}
-    else:
-        parsed_info = {
-            "원본주소": address,
-            "파싱결과": result,
-            "건물명_추출": result.get("건물명", "알 수 없음"),
-            "검색결과수": len(cost_records)
-        }
-
-        prompt = {
-            "task": "주소 유사도 분석 및 공시가격 추출",
-            "parsed_info": parsed_info,
-            "candidate_data": cost_records,
-            "instruction": "위 원본 주소와 가장 유사한 후보 데이터를 찾아 해당 행의 '공시가격' 값을 JSON 형식으로 반환해주세요. 단지명과 동호수가 가장 중요한 매칭 기준입니다. 반드시 '공시가격' 키에 공시가격 값을 포함해야 합니다."
-        }
-        
-        prompt_json = json.dumps(prompt, ensure_ascii=False, indent=2)
-        try:
-            gpt_result = analyze_with_gpt(prompt_json)
+        if cost.empty:
+            cost = df[
+                (df['시도']==result["시도"]) &
+                (df['시군구']==result["시군구"]) &
+                (df['동리']==result["동리"])
+            ]
             
-            if 'public_price' in gpt_result:
-                return {"공시가격": gpt_result['public_price'], "method": "gpt_analysis"}
-            elif '공시가격' in gpt_result:
-                return {"공시가격": gpt_result['공시가격'], "method": "gpt_analysis"}
-            else:
-                return {"공시가격": cost.iloc[0]['공시가격'], "method": "fallback_first_result"}
+        cost_records = cost.to_dict(orient='records')
+
+        # DataFame에서 직접 공시가격 확인 (GPT 호출 없이)
+        if not cost.empty:
+            # 결과가 1개만 있으면 바로 반환
+            if len(cost) == 1:
+                direct_price = cost.iloc[0]['공시가격']
+                return {"공시가격": direct_price, "method": "direct_match"}
+        
+        # GPT 분석 사용
+        if len(cost_records) == 0:
+            print("검색 결과가 없습니다. 데이터베이스에 해당 주소와 유사한 항목이 없습니다.")
+            return {"error": "해당 주소를 찾을 수 없습니다.", "공시가격": "NA"}
+        else:
+            parsed_info = {
+                "원본주소": address,
+                "파싱결과": result,
+                "건물명_추출": result.get("건물명", "알 수 없음"),
+                "검색결과수": len(cost_records)
+            }
+
+            prompt = {
+                "task": "주소 유사도 분석 및 공시가격 추출",
+                "parsed_info": parsed_info,
+                "candidate_data": cost_records,
+                "instruction": "위 원본 주소와 가장 유사한 후보 데이터를 찾아 해당 행의 '공시가격' 값을 JSON 형식으로 반환해주세요. 단지명과 동호수가 가장 중요한 매칭 기준입니다. 반드시 '공시가격' 키에 공시가격 값을 포함해야 합니다."
+            }
+            
+            prompt_json = json.dumps(prompt, ensure_ascii=False, indent=2)
+            try:
+                gpt_result = analyze_with_gpt(prompt_json)
                 
-        except Exception as e:
-            if not cost.empty:
-                return {"공시가격": cost.iloc[0]['공시가격'], "method": "fallback_after_error"}
-            return {"error": f"GPT API 오류: {str(e)}", "공시가격": "NA"}
+                if 'public_price' in gpt_result:
+                    return {"공시가격": gpt_result['public_price'], "method": "gpt_analysis"}
+                elif '공시가격' in gpt_result:
+                    return {"공시가격": gpt_result['공시가격'], "method": "gpt_analysis"}
+                else:
+                    return {"공시가격": cost.iloc[0]['공시가격'], "method": "fallback_first_result"}
+                    
+            except Exception as e:
+                if not cost.empty:
+                    return {"공시가격": cost.iloc[0]['공시가격'], "method": "fallback_after_error"}
+                return {"error": f"GPT API 오류: {str(e)}", "공시가격": "NA"}
+    except Exception as e:
+        print(f"공시가격 조회 중 오류 발생: {str(e)}")
+        return {"error": f"공시가격 조회 중 오류: {str(e)}", "공시가격": "NA"}
         
 
 #좌표로 면적 찾기
@@ -855,3 +860,105 @@ def building(data):
     prompt_json = json.dumps(prompt, ensure_ascii=False, indent=2)
     result = analyze_with_gpt(prompt_json)
     return result['result']
+# def generate_contract_summary(analysis_result, user_id, contract_id):
+    """
+    계약서 분석 결과의 주요 정보를 요약하여 저장하는 함수
+    
+    Args:
+        analysis_result (dict): AI 분석 결과 데이터
+        user_id (str): 사용자 ID
+        contract_id (str): 계약 ID
+        
+    Returns:
+        dict: 요약 결과
+    """
+    try:
+        # 주요 계약 정보 추출을 위한 초기화
+        summary = {
+            "잔금일": "NA",
+            "입주일": "NA",
+            "주소": "NA",
+            "계약금": "NA",
+            "관리비": "NA",
+            "계약기간": "NA",
+            "임대인": "NA",
+            "임차인": "NA",
+            "중개인": "NA",
+            "위험도": "안전",  # 기본값
+            "주요문제": [],
+            "해결책": []
+        }
+        
+        # 위험 관련 정보 추출
+        issues = []
+        solutions = []
+        
+        # 각 문서 타입별로 데이터 추출
+        for doc_type, doc_data in analysis_result.items():
+            if not isinstance(doc_data, dict):
+                continue
+                
+            for page_key, page_data in doc_data.items():
+                if not isinstance(page_data, dict):
+                    continue
+                
+                # 계약서에서 기본 정보 추출
+                if doc_type == "contract":
+                    for field_key, field_data in page_data.items():
+                        if not isinstance(field_data, dict) or "text" not in field_data:
+                            continue
+                            
+                        # 주요 필드 매핑
+                        if "잔금" in field_key:
+                            summary["잔금일"] = field_data["text"]
+                        elif "입주" in field_key:
+                            summary["입주일"] = field_data["text"]
+                        elif "소재지" in field_key or "주소" in field_key:
+                            summary["주소"] = field_data["text"]
+                        elif "계약금" in field_key:
+                            summary["계약금"] = field_data["text"]
+                        elif "관리비" in field_key:
+                            summary["관리비"] = field_data["text"]
+                        elif "계약기간" in field_key or "임대차기간" in field_key:
+                            summary["계약기간"] = field_data["text"]
+                        elif "임대인" in field_key:
+                            summary["임대인"] = field_data["text"]
+                        elif "임차인" in field_key:
+                            summary["임차인"] = field_data["text"]
+                        elif "중개" in field_key:
+                            summary["중개인"] = field_data["text"]
+                
+                # 모든 문서에서 위험 정보 추출
+                for field_key, field_data in page_data.items():
+                    if isinstance(field_data, dict) and "notice" in field_data and "solution" in field_data:
+                        if field_data["notice"] != "문제 없음" and field_data["notice"] != "NA":
+                            issues.append(field_data["notice"])
+                            solutions.append(field_data["solution"])
+        
+        # 주요 문제점과 해결책 정리 (최대 3개)
+        if issues:
+            summary["주요문제"] = issues[:3]
+            summary["해결책"] = solutions[:3]
+            summary["위험도"] = "주의" if len(issues) <= 2 else "위험"
+        
+        # 메타데이터 추가
+        summary.update({
+            "userId": user_id,
+            "contractId": contract_id,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "issueCount": len(issues)
+        })
+        
+        # Firestore에 요약 결과 저장
+        save_summary_to_firestore(user_id, contract_id, summary)
+        
+        return summary
+        
+    except Exception as e:
+        print(f"요약 생성 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return {
+            "error": f"요약 생성 중 오류 발생: {str(e)}",
+            "userId": user_id,
+            "contractId": contract_id
+        }

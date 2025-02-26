@@ -510,8 +510,12 @@ def start_ai_analysis(request):
 
             # 공시가격 조회
             if res_1 != "nan":
-                res = price(res_1)
-                cost=int(res['공시가격'])
+                try:
+                    res = price(res_1)
+                    cost = int(res['공시가격'])
+                except (ValueError, TypeError, KeyError):
+                    cost = 'nan'
+                    print("공시가격 조회 실패")
             else:
                 cost = 'nan'
                 print("주소 불일치로 공시가격 조회 불가")
