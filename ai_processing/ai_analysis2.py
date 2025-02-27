@@ -425,7 +425,7 @@ def find_keys_in_json(data):
     return result
 def solution_1(data): #등본, 건축물 대장 상 위험 매물, 면적, 계약기간, 임대차 기간, 특약 요약, 주소
 
-    promt = (f"""
+    prompt = (f"""
 {data}에서 'contract'는 계약서, 'building_registry'는 건축물 대장, 'registry_document'는 등기부등본이다.
 
 다음 항목들을 분석하여 문제가 있으면 각 항목별로 notice와 solution을 추가해주세요:
@@ -477,19 +477,20 @@ def solution_1(data): #등본, 건축물 대장 상 위험 매물, 면적, 계�
 
 원본 데이터의 모든 구조를 유지하고, 필요한 필드에만 notice와 solution을 추가하는 방식으로 결과를 JSON 형태로 반환해주세요.
 """)
-    result = analyze_with_gpt(promt)
+    result = analyze_with_gpt(prompt)
 
     return result
 
 def solution_2(data): #사용자 이름
-    promt = f"""
+    prompt = (f"""
 {data}에서 'contract'는 계약서, 'building_registry'는 건축물 대장, 'registry_document'는 등기부등본이다.
 계약서에서 '임대인', 건축물대장에서 '성명', 등기부등본에서 '소유자'이 일치하는지 확인 할 것.
 성명, 소유자가 1명이 아닌 경우 공동명의로 판단한다.
 성명끼리는 같은 notice와 solution을 출력한다.
 소유자끼리는 같은 notice와 solution을 출력한다.
-
-소유자가 한 명이 아니라면 '임대인'의 notice에 공지한다.
+"""
+"""
+소유자가 한 명이 아니라면 '임대인'과 '소유자' 필드에 notice와 solution을 추가해야 한다
 {{
   "임대인": {{
     "text": "...",
@@ -526,8 +527,8 @@ def solution_2(data): #사용자 이름
 }}
 
 원본 데이터의 모든 구조를 유지하고, 필요한 필드에만 notice와 solution을 추가하는 방식으로 결과를 JSON 형태로 반환해주세요.
-"""
-    result = analyze_with_gpt(promt)
+""")
+    result = analyze_with_gpt(prompt)
 
     return result
 
@@ -536,9 +537,10 @@ def solution_3(data, cost): #보증금, 근저당권, 공시가
     # 이전 코드에서 문자열 연결과 중첩 따옴표가 혼합되어 있어 오류 발생 가능성 높음
     
     # 단일 f-string으로 수정하여 일관성 유지
-    prompt = f"""
+    prompt = (f"""
 {data}에서 'contract'는 계약서, 'building_registry'는 건축물 대장, 'registry_document'는 등기부등본이다. {cost}는 공시가격이다.
-
+"""
+f"""
 다음 항목들을 분석하여 문제가 있으면 각 항목별로 notice와 solution을 추가해주세요:
 '보증금', '채권최고액' 외에는 notice, solution을 추가하지 않는다.
 
@@ -589,7 +591,7 @@ def solution_3(data, cost): #보증금, 근저당권, 공시가
 }}
 
 JSON 형식으로 응답해주세요.
-"""
+""")
     result = analyze_with_gpt(prompt)
     return result
 
@@ -740,7 +742,8 @@ def analyze_contract_data(merged_data, res_1, cost):
         
         print("solution_2 분석 시작...")
         result_2 = solution_2(data)
-        
+        print("📌 AI 분석 결과:", result_2)
+
         print("solution_3 분석 시작...")
         result_3 = solution_3(data, cost)
         

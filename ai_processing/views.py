@@ -528,7 +528,10 @@ def start_ai_analysis(request):
 
             # AI 분석 실행
             analysis_result = analyze_contract_data(merged_data, res_1, cost)
-            
+
+            # 디버깅: 분석 결과 출력
+            print("📌 AI 분석 결과:", analysis_result)
+
             # Bounding Box 복원
             analysis_result = restore_bounding_boxes(analysis_result, bounding_boxes)
             
