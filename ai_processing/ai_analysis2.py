@@ -361,13 +361,13 @@ def building(data):
         "task": "주소 유사도 분석 및 도로명 주소 추출",
         "location": result_dict,
         "addresses": address_list,
-        "instruction": "각 주소별 유사도를 분석하고 같은 장소인지 확인하여 같은 장소라면 reg_건물주소를 result 값으로 출력해줘. 아니면 'nan'을 출력해줘. 다른 말은 들어가면 안돼"
+        "instruction": "각 주소별 유사도를 분석하고 같은 장소인지 확인하여 모두 같은 장소라면 reg_건물주소를 result 값으로 출력해줘. 아니면 'nan'을 result 값으로 출력해줘. 다른 말은 들어가면 안돼"
     }
 
     prompt_json = json.dumps(prompt, ensure_ascii=False, indent=2)
     result = analyze_with_gpt(prompt_json)
     print(result)
-    return result['result'], used_keys
+    return result['result']
 #실행(수정사항 포함)
 
 def find_keys_in_json(data):
@@ -434,7 +434,7 @@ def solution_1(data): #등본, 건축물 대장 상 위험 매물, 면적, 계�
 2. 건축물대장에 '위반건축물'이 있는지 확인
 3. 건축물대장과 계약서상의 면적이 일치하는지 확인
 4. 계약기간과 임대차 기간이 일치하는지 확인
-5. 특약사항과 특약에 임차인에게 불리한 조항 확인
+5. 특약사항과 특약에 임차인에게 불리한 조항이 있는지 반드시 확인
 6. 관리비_비정액에 값이 있고 관리비_정액에 값이 없으면 경고
 원본 데이터 구조를 유지하면서, 분석한 항목에 'notice'와 'solution' 필드를 추가해주세요.
 예를 들어, 등기부등본에 '가압류'가 있다면:
@@ -464,7 +464,7 @@ def solution_1(data): #등본, 건축물 대장 상 위험 매물, 면적, 계�
 }}
 ```
 
-주소/면적/계약기간 불일치는 해당 필드에 notice와 solution을 추가해주세요.
+면적/계약기간 불일치는 해당 필드에 notice와 solution을 추가해주세요.
 특약사항은 해당 필드에 notice로 요약 내용을 추가해주세요.
 
 문제가 없는 항목은 다음과 같이 추가해주세요:
@@ -656,11 +656,11 @@ def merge_analysis(sol_json, analysis_jsons):
 # 엔드포인트와 통합을 위한 분석 함수
 def analyze_contract_data(merged_data, res_1, cost):
     """
-    계약서 데이터를 분석하는 통합 함수
+    계약서 데이터를 분석하는 통합 함수 - request() 함수와 유사한 구조로 구현
     
     Args:
         merged_data (dict): 병합된 문서 데이터
-        res_1 (str): 주소 일치 여부 결과
+        res_1 (str/list): 주소 일치 여부 결과
         cost (int/str): 공시가격
         
     Returns:
@@ -671,34 +671,76 @@ def analyze_contract_data(merged_data, res_1, cost):
         import copy
         data = copy.deepcopy(merged_data)
         
-        # 주소 검증 결과 처리
-        used_keys = []
-        if res_1 != "nan" and res_1 != "NA":
-            # 주소가 일치할 경우
-            for page_key, page_data in data.items():
-                if isinstance(page_data, dict):
-                    for key, value in page_data.items():
-                        if "address" in str(key).lower() or "주소" in str(key) or "소재지" in str(key):
-                            if isinstance(value, dict):
-                                value["notice"] = "주소 일치 확인됨"
-                                value["solution"] = "계약 진행 가능"
-                                used_keys.append(key)
+        # 주소 관련 키 목록 정의
+        used_keys = [
+            "소재지",
+            "임차할부분",
+            "도로명주소",
+            "건물주소"
+        ]
+        
+        # 디버깅: 타입과 정확한 값 확인
+        print(f"res_1의 타입: {type(res_1)}, 값: {repr(res_1)}")
+        
+        # res_1이 리스트인 경우 처리
+        if isinstance(res_1, list):
+            if res_1 and all(isinstance(addr, str) for addr in res_1):
+                if all(addr == res_1[0] for addr in res_1):
+                    res_1 = res_1[0]  # 모든 주소가 동일하면 첫 번째 주소 사용
+                else:
+                    res_1 = "nan"  # 주소가 다르면 불일치로 처리
+            else:
+                res_1 = "nan"  # 빈 리스트이거나 문자열 아닌 요소가 있으면 불일치로 처리
+        
+        # 보다 안전한 조건식 (request() 함수와 동일)
+        if res_1 and res_1 not in ["nan", "NA", "NaN", "NAN", float('nan'), None]:
+            # 주소 일치 - 각 문서의 주소 관련 필드에 notice 추가
+            for section in ["contract", "building_registry", "registry_document"]:
+                if section in data:
+                    for subsection_key, subsection in data[section].items():
+                        for key in used_keys:
+                            if key in subsection and isinstance(subsection[key], dict):
+                                subsection[key]["notice"] = "주소 일치 확인됨"
+                                subsection[key]["solution"] = "계약 진행 가능"
+                                print(f"{section}.{subsection_key}.{key}에 일치 notice 추가 완료")
         else:
-            # 주소 불일치 경우
-            for page_key, page_data in data.items():
-                if isinstance(page_data, dict):
-                    for key, value in page_data.items():
-                        if "address" in str(key).lower() or "주소" in str(key) or "소재지" in str(key):
-                            if isinstance(value, dict):
-                                value["notice"] = "주소가 일치하지 않습니다"
-                                value["solution"] = "주소 확인이 필요합니다"
-                                used_keys.append(key)
+            # 주소 불일치 감지
+            cost = 'nan'
+            print(f"주소 불일치 감지: res_1 = {res_1}")
+            
+            # used_keys가 None이거나 비어있는지 확인
+            if used_keys is None:
+                print("used_keys가 None입니다. 기본 키를 사용합니다.")
+                used_keys = ["주소", "소재지", "건물주소"]  # 기본 키 설정
+            
+            # used_keys가 비어있는지 확인
+            if not used_keys:
+                print("used_keys가 비어있습니다. 기본 키를 사용합니다.")
+                used_keys = ["주소", "소재지", "건물주소"]  # 기본 키 설정
+            
+            print(f"사용할 키: {used_keys}")
+            
+            # data 내에서 주소 관련 키를 찾아 notice 추가 (request() 함수와 동일한 방식)
+            for section in ["contract", "building_registry", "registry_document"]:
+                if section in data:
+                    for subsection_key, subsection in data[section].items():
+                        for key in used_keys:
+                            if key in subsection and isinstance(subsection[key], dict):
+                                subsection[key]["notice"] = "주소가 일치하지 않습니다"
+                                subsection[key]["solution"] = "주소 확인이 필요합니다."
+                                print(f"{section}.{subsection_key}.{key}에 불일치 notice 추가 완료")
         
         # 세 가지 분석 실행
+        print("solution_1 분석 시작...")
         result_1 = solution_1(data)
+        
+        print("solution_2 분석 시작...")
         result_2 = solution_2(data)
+        
+        print("solution_3 분석 시작...")
         result_3 = solution_3(data, cost)
         
+        print("분석 결과 병합 중...")
         # 결과 병합
         merged_result = merge_analysis(data, [result_1, result_2, result_3])
         
@@ -707,7 +749,7 @@ def analyze_contract_data(merged_data, res_1, cost):
     except Exception as e:
         print(f"분석 중 오류 발생: {str(e)}")
         traceback.print_exc()
-        return merged_data  # 오류 발생 시 원래 데이터 반환
+        return merged_data  # 오류 발생 시 원래 데이터 반환환
     
 
 def adjust_owner_count(building_registry_data, registry_document_data, merged_data):
