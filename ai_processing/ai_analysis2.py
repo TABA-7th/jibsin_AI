@@ -865,7 +865,8 @@ def summary_result(analysis_data):
     prompt = """
 임대차 계약서를 분석하고 다음 JSON 형식으로 결과를 반환해 주세요.  
 각 항목에는 "text" (내용)과 "check" (문제 여부, true/false)를 포함해야 합니다.  
-또한, 계약의 전체 요약 정보를 제공하는 "summary" 키를 추가해야 합니다.  
+또한, 계약의 전체 요약 정보를 제공하는 "summary" 키를 추가해야 합니다. 
+차임 내용은 반드시 검사해야합니다.
 
 {
   "summary": {
